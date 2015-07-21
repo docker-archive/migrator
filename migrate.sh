@@ -3,8 +3,6 @@
 set -e
 
 # set variables
-V1_REGISTRY_USERNAME=${V1_REGISTRY_USERNAME:-}
-V1_REGISTRY_PASSWORD=${V1_REGISTRY_PASSWORD:-}
 V1_REGISTRY_URL=${V1_REGISTRY_URL:-}
 V2_REGISTRY_URL=${V2_REGISTRY_URL:-}
 
@@ -12,14 +10,17 @@ V2_REGISTRY_URL=${V2_REGISTRY_URL:-}
 echo "Please login for ${V1_REGISTRY_URL}:"
 docker login ${V1_REGISTRY_URL}
 
+# decode username/password for v1 registry auth to query API
+V1_AUTH="$(cat ~/.dockercfg | jq -r '."'${V1_REGISTRY_URL}'".auth' | base64 --decode)"
+
 # get list of images in registry
-IMAGE_LIST="$(curl -s https://${V1_REGISTRY_USERNAME}:${V1_REGISTRY_PASSWORD}@${V1_REGISTRY_URL}/v1/search?q= | jq -r '.results | .[] | .name')"
+IMAGE_LIST="$(curl -s https://${V1_AUTH}@${V1_REGISTRY_URL}/v1/search?q= | jq -r '.results | .[] | .name')"
 
 # loop through all images in registry to get tags for each
 for i in ${IMAGE_LIST}
 do
   # get list of tags for image i
-  IMAGE_TAGS=$(curl -s https://${V1_REGISTRY_USERNAME}:${V1_REGISTRY_PASSWORD}@${V1_REGISTRY_URL}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
+  IMAGE_TAGS=$(curl -s https://${V1_AUTH}@${V1_REGISTRY_URL}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
 
   # loop through tags to create list of full image names w/tags
   for j in ${IMAGE_TAGS}
