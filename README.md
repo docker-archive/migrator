@@ -38,3 +38,5 @@ The migration occurs using an automated script inside of the Docker container.  
  - If you do not have authentication enabled, leave the username blank when prompted
 7. Push all images and tags to the v2 registry
 8. Verify image lists match from the v1 to v2 (impossible since we can't query the v2 registry)
+
+[![asciicast](https://asciinema.org/a/1ahni6vlnjh2plq8quvddegva.png)](https://asciinema.org/a/1ahni6vlnjh2plq8quvddegva)
