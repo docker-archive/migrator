@@ -37,6 +37,7 @@ The migration occurs using an automated script inside of the Docker container.  
 6. (Optional) Login to the v2 registry
  - If you do not have authentication enabled, leave the username blank when prompted
 7. Push all images and tags to the v2 registry
-8. Verify image lists match from the v1 to v2 (impossible since we can't query the v2 registry)
+8. ~~Verify image lists match from the v1 to v2~~ (impossible right now since we can't query the v2 registry)
+9. Cleanup local docker engine to remove images
 
 [![asciicast](https://asciinema.org/a/1ahni6vlnjh2plq8quvddegva.png)](https://asciinema.org/a/1ahni6vlnjh2plq8quvddegva)
