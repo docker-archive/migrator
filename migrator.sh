@@ -123,4 +123,23 @@ do
 done
 echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY_URL}"
 
+# cleanup images from local docker engine
+echo -e "\nCleaning up images from local Docker engine..."
+if [ "${V1_REGISTRY_URL}" = "${V2_REGISTRY_URL}" ]
+then
+  for i in ${FULL_IMAGE_LIST}
+  do
+    # remove docker image/tags; allow failures here (in case image is actually in use)
+    docker rmi ${V1_REGISTRY_URL}/${i} || true
+  done
+else
+  for i in ${FULL_IMAGE_LIST}
+  do
+    # remove docker image/tags; allow failures here (in case image is actually in use)
+    docker rmi ${V1_REGISTRY_URL}/${i} || true
+    docker rmi ${V2_REGISTRY_URL}/${i} || true
+  done
+fi
+echo -e "${OK} Successfully cleaned up images from local Docker engine"
+
 echo -e "\n${OK} Migration from v1 to v2 complete!"
