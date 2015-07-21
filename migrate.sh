@@ -2,9 +2,19 @@
 
 set -e
 
-# set variables
-V1_REGISTRY_URL=${V1_REGISTRY_URL:-}
-V2_REGISTRY_URL=${V2_REGISTRY_URL:-}
+# verify v1 registry variable has been passed
+if [ -z "${V1_REGISTRY_URL}" ]
+then
+  echo "V1_REGISTRY_URL environment variable required"
+  exit 1
+fi
+
+# verify v2 registry variable has been passed
+if [ -z "${V2_REGISTRY_URL}" ]
+then
+  echo "V2_REGISTRY_URL environment variable required"
+  exit 1
+fi
 
 # perform a docker login to the v1 registry
 echo "Please login for ${V1_REGISTRY_URL}:"
