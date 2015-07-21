@@ -2,17 +2,36 @@
 
 set -e
 
+# sets colors for use in output
+GREEN='\e[32m'
+YELLOW='\e[0;33m'
+RED='\e[31m'
+BOLD='\e[1m'
+CLEAR='\e[0m'
+
+# pre-configure ok, warning, and error output
+OK="[${GREEN}OK${CLEAR}]"
+NOTICE="[${YELLOW}NOTICE${CLEAR}]"
+ERROR="[${RED}ERROR${CLEAR}]"
+
 # verify v1 registry variable has been passed
 if [ -z "${V1_REGISTRY_URL}" ]
 then
-  echo "V1_REGISTRY_URL environment variable required"
+  echo -e "${ERROR} ${BOLD}V1_REGISTRY_URL${CLEAR} environment variable required"
   exit 1
 fi
 
 # verify v2 registry variable has been passed
 if [ -z "${V2_REGISTRY_URL}" ]
 then
-  echo "V2_REGISTRY_URL environment variable required"
+  echo -e "${ERROR} ${BOLD}V2_REGISTRY_URL${CLEAR} environment variable required"
+  exit 1
+fi
+
+# verify docker daemon is accessible
+if ! $(docker info > /dev/null 2>&1)
+then
+  echo -e "${ERROR} Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
   exit 1
 fi
 
@@ -24,6 +43,7 @@ docker login ${V1_REGISTRY_URL}
 V1_AUTH="$(cat ~/.dockercfg | jq -r '."'${V1_REGISTRY_URL}'".auth' | base64 --decode)"
 
 # get list of images in registry
+echo -e "\nGetting a list of images from ${V1_REGISTRY_URL}..."
 IMAGE_LIST="$(curl -s https://${V1_AUTH}@${V1_REGISTRY_URL}/v1/search?q= | jq -r '.results | .[] | .name')"
 
 # loop through all images in registry to get tags for each
@@ -45,44 +65,55 @@ do
     FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
   done
 done
+echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY_URL}"
 
 # pull all images to local system
+echo -e "\nPulling all images from ${V1_REGISTRY_URL} to your local system..."
 for i in ${FULL_IMAGE_LIST}
 do
   docker pull ${V1_REGISTRY_URL}/${i}
   echo
 done
+echo -e "${OK} Successully pulled all images from ${V1_REGISTRY_URL} to your local system"
 
+# check to see if v1 and v2 registry share the same DNS name
 if [ "${V1_REGISTRY_URL}" = "${V2_REGISTRY_URL}" ]
 then
-  echo "Skipping re-tagging; same URL used for v1 and v2"
+  # retagging not needed; re-using same DNS name for v2 registry
+  echo -e "${OK} Skipping re-tagging; same URL used for v1 and v2\n"
+  # notify user to swap out their registry now
+  echo -en "${NOTICE} "
   read -rsp $'Swap v1 and v2 registries and then press any key to continue...\n' -n1 key
 else
-  # re-tag images
+  # re-tag images; different DNS name used for v2 registry
+  echo -e "\nRetagging all images from '${V1_REGISTRY_URL}' to '${V2_REGISTRY_URL}'..."
   for i in ${FULL_IMAGE_LIST}
   do
-    echo -n "Re-tagging '${V1_REGISTRY_URL}/${i}' as '${V2_REGISTRY_URL}/${i}'..."
     docker tag -f ${V1_REGISTRY_URL}/${i} ${V2_REGISTRY_URL}/${i}
-    echo -e "done\n"
+    echo -e "${OK} ${V1_REGISTRY_URL}/${i} > ${V2_REGISTRY_URL}/${i}"
   done
+  echo -e "${OK} Successfully retagged all images"
 fi
 
 # verify V2_REGISTRY_URL is reporting as a v2 registry
 if $(curl -Is https://${V2_REGISTRY_URL}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1)
 then
-  echo "Verified v2 registry (${V2_REGISTRY_URL}) is available"
+  echo -e "\n${OK} Verified v2 registry (${V2_REGISTRY_URL}) is available"
 else
-  echo "Error: v2 registry (${V2_REGISTRY_URL}) is not available"
+  echo -e "\n${ERROR} v2 registry (${V2_REGISTRY_URL}) is not available"
+  exit 1
 fi
 
 # perform a docker login to the v2 registry
-echo "Please login for ${V2_REGISTRY_URL}:"
+echo -e "\nPlease login for ${V2_REGISTRY_URL}:"
 docker login ${V2_REGISTRY_URL}
 
 # push images to v2 registry
+echo -e "\nPushing all images to ${V2_REGISTRY_URL}..."
 for i in ${FULL_IMAGE_LIST}
 do
   docker push ${V2_REGISTRY_URL}/${i}
 done
+echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY_URL}"
 
-echo -e "\nMigration from v1 to v2 complete!"
+echo -e "\n${OK} Migration from v1 to v2 complete!"
