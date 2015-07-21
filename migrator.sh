@@ -14,6 +14,12 @@ OK="[${GREEN}OK${CLEAR}]"
 NOTICE="[${YELLOW}NOTICE${CLEAR}]"
 ERROR="[${RED}ERROR${CLEAR}]"
 
+# function for error catching
+catch_error(){
+  echo -e "\n${ERROR} ${@}"
+  exit 1
+}
+
 # verify v1 registry variable has been passed
 if [ -z "${V1_REGISTRY_URL}" ]
 then
@@ -37,16 +43,16 @@ fi
 
 # perform a docker login to the v1 registry
 echo "Please login for ${V1_REGISTRY_URL}:"
-docker login ${V1_REGISTRY_URL}
+docker login ${V1_REGISTRY_URL} || catch_error "Failed to login to ${V1_REGISTRY_URL}"
 
 # decode username/password for v1 registry auth to query API
 V1_AUTH="$(cat ~/.dockercfg | jq -r '."'${V1_REGISTRY_URL}'".auth' | base64 --decode)"
 
-# get list of images in registry
+# get list of images in v1 registry
 echo -e "\nGetting a list of images from ${V1_REGISTRY_URL}..."
 IMAGE_LIST="$(curl -s https://${V1_AUTH}@${V1_REGISTRY_URL}/v1/search?q= | jq -r '.results | .[] | .name')"
 
-# loop through all images in registry to get tags for each
+# loop through all images in v1 registry to get tags for each
 for i in ${IMAGE_LIST}
 do
   # get list of tags for image i
@@ -71,7 +77,7 @@ echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY_U
 echo -e "\nPulling all images from ${V1_REGISTRY_URL} to your local system..."
 for i in ${FULL_IMAGE_LIST}
 do
-  docker pull ${V1_REGISTRY_URL}/${i}
+  docker pull ${V1_REGISTRY_URL}/${i} || catch_error "Failed to pull ${V1_REGISTRY_URL}/${i}"
   echo
 done
 echo -e "${OK} Successully pulled all images from ${V1_REGISTRY_URL} to your local system"
@@ -89,7 +95,7 @@ else
   echo -e "\nRetagging all images from '${V1_REGISTRY_URL}' to '${V2_REGISTRY_URL}'..."
   for i in ${FULL_IMAGE_LIST}
   do
-    docker tag -f ${V1_REGISTRY_URL}/${i} ${V2_REGISTRY_URL}/${i}
+    docker tag -f ${V1_REGISTRY_URL}/${i} ${V2_REGISTRY_URL}/${i} || catch_error "Failed to retag ${V1_REGISTRY_URL}/${i} to ${V2_REGISTRY_URL}/${i}"
     echo -e "${OK} ${V1_REGISTRY_URL}/${i} > ${V2_REGISTRY_URL}/${i}"
   done
   echo -e "${OK} Successfully retagged all images"
@@ -106,13 +112,14 @@ fi
 
 # perform a docker login to the v2 registry
 echo -e "\nPlease login for ${V2_REGISTRY_URL}:"
-docker login ${V2_REGISTRY_URL}
+docker login ${V2_REGISTRY_URL} || catch_error "Failed to login to ${V2_REGISTRY_URL}"
 
 # push images to v2 registry
 echo -e "\nPushing all images to ${V2_REGISTRY_URL}..."
 for i in ${FULL_IMAGE_LIST}
 do
-  docker push ${V2_REGISTRY_URL}/${i}
+  docker push ${V2_REGISTRY_URL}/${i} || catch_error "Failed to push ${V2_REGISTRY_URL}/${i}"
+  echo
 done
 echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY_URL}"
 
