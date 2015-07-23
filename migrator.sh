@@ -28,27 +28,25 @@ trap 'catch_error User exited' SIGINT
 # verify v1 registry variable has been passed
 if [ -z "${V1_REGISTRY_URL}" ]
 then
-  echo -e "${ERROR} ${BOLD}V1_REGISTRY_URL${CLEAR} environment variable required"
-  exit 1
+  catch_error "${BOLD}V1_REGISTRY_URL${CLEAR} environment variable required"
 fi
 
 # verify v2 registry variable has been passed
 if [ -z "${V2_REGISTRY_URL}" ]
 then
-  echo -e "${ERROR} ${BOLD}V2_REGISTRY_URL${CLEAR} environment variable required"
-  exit 1
+  catch_error "${BOLD}V2_REGISTRY_URL${CLEAR} environment variable required"
 fi
 
 # verify docker daemon is accessible
 if ! $(docker info > /dev/null 2>&1)
 then
-  echo -e "${ERROR} Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
-  exit 1
+  catch_error "Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
 fi
 
 # perform a docker login to the v1 registry
 echo -e "${NOTICE} Please login for ${V1_REGISTRY_URL}:"
 LOGIN_SUCCESS="false"
+# keep retrying docker login until successful
 while [ "$LOGIN_SUCCESS" = "false" ]
 do
   docker login ${V1_REGISTRY_URL} && LOGIN_SUCCESS="true"
@@ -128,10 +126,10 @@ do
   # check to see if V2_REGISTRY_URL is returning the proper api version string
   if $(curl -Is https://${V2_REGISTRY_URL}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
   then
-    # api version indicates v2; ok to proceed
+    # api version indicates v2; sets value to exit loop
     V2_READY="true"
   else
-    # api version either not returned or not showing proper version
+    # api version either not returned or not showing proper version; will continue in loop
     echo -e "\n${ERROR} v2 registry (${V2_REGISTRY_URL}) is not available"
     echo -en "${NOTICE} "
     read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry [ctrl+c to abort]\n' -n1 key
@@ -143,6 +141,7 @@ echo -e "\n${OK} Verified v2 registry (${V2_REGISTRY_URL}) is available"
 # perform a docker login to the v2 registry
 echo -e "\n${NOTICE} Please login for ${V2_REGISTRY_URL}:"
 LOGIN_SUCCESS="false"
+# keep retrying docker login until successful
 while [ "$LOGIN_SUCCESS" = "false" ]
 do
   docker login ${V2_REGISTRY_URL} && LOGIN_SUCCESS="true"
@@ -160,6 +159,7 @@ echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY_URL}"
 
 # cleanup images from local docker engine
 echo -e "\n${INFO} Cleaning up images from local Docker engine"
+# see if re-tagged images exist and remove accordingly
 if [ "${V1_REGISTRY_URL}" = "${V2_REGISTRY_URL}" ]
 then
   for i in ${FULL_IMAGE_LIST}
