@@ -89,6 +89,8 @@ do
   echo ${V1_REGISTRY_URL}/${i}
 done
 echo -e "${OK} End full list of images from ${V1_REGISTRY_URL}"
+echo -en "\n${NOTICE} "
+read -rsp $"Press any key to begin migration process [ctrl+c to abort]" -n1 key; echo
 
 # pull all images to local system
 echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY_URL} to your local system"
@@ -132,7 +134,7 @@ do
     # api version either not returned or not showing proper version
     echo -e "\n${ERROR} v2 registry (${V2_REGISTRY_URL}) is not available"
     echo -en "${NOTICE} "
-    read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry (ctrl+c to abort)\n' -n1 key
+    read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry [ctrl+c to abort]\n' -n1 key
   fi
 done
 # v2 registry verified as available
