@@ -40,7 +40,7 @@ The migration occurs using an automated script inside of the Docker container.  
 8. ~~Verify image lists match from the v1 to v2~~ (impossible right now since we can't query the v2 registry)
 9. Cleanup local docker engine to remove images
 
-[![asciicast](https://asciinema.org/a/1ahni6vlnjh2plq8quvddegva.png)](https://asciinema.org/a/1ahni6vlnjh2plq8quvddegva)
+[![asciicast](https://asciinema.org/a/23844.png)](https://asciinema.org/a/23844)
 
 ## Logging Migration Output
 If you need to log the output from migrator, add `2>&1 | tee migration.log` to the end of the command shown above to capture the output to a file of your choice.
