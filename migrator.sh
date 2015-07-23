@@ -4,6 +4,7 @@ set -e
 
 # sets colors for use in output
 GREEN='\e[32m'
+BLUE='\e[34m'
 YELLOW='\e[0;33m'
 RED='\e[31m'
 BOLD='\e[1m'
@@ -11,7 +12,8 @@ CLEAR='\e[0m'
 
 # pre-configure ok, warning, and error output
 OK="[${GREEN}OK${CLEAR}]"
-NOTICE="[${YELLOW}NOTICE${CLEAR}]"
+INFO="[${BLUE}INFO${CLEAR}]"
+NOTICE="[${YELLOW}!!${CLEAR}]"
 ERROR="[${RED}ERROR${CLEAR}]"
 
 # function for error catching
@@ -19,6 +21,9 @@ catch_error(){
   echo -e "\n${ERROR} ${@}"
   exit 1
 }
+
+# trap for ctrl+c
+trap 'catch_error User exited' SIGINT
 
 # verify v1 registry variable has been passed
 if [ -z "${V1_REGISTRY_URL}" ]
@@ -42,14 +47,18 @@ then
 fi
 
 # perform a docker login to the v1 registry
-echo "Please login for ${V1_REGISTRY_URL}:"
-docker login ${V1_REGISTRY_URL} || catch_error "Failed to login to ${V1_REGISTRY_URL}"
+echo -e "${NOTICE} Please login for ${V1_REGISTRY_URL}:"
+LOGIN_SUCCESS="false"
+while [ "$LOGIN_SUCCESS" = "false" ]
+do
+  docker login ${V1_REGISTRY_URL} && LOGIN_SUCCESS="true"
+done
 
 # decode username/password for v1 registry auth to query API
 V1_AUTH="$(cat ~/.dockercfg | jq -r '."'${V1_REGISTRY_URL}'".auth' | base64 --decode)"
 
 # get list of images in v1 registry
-echo -e "\nGetting a list of images from ${V1_REGISTRY_URL}..."
+echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY_URL}"
 IMAGE_LIST="$(curl -s https://${V1_AUTH}@${V1_REGISTRY_URL}/v1/search?q= | jq -r '.results | .[] | .name')"
 
 # loop through all images in v1 registry to get tags for each
@@ -73,12 +82,21 @@ do
 done
 echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY_URL}"
 
-# pull all images to local system
-echo -e "\nPulling all images from ${V1_REGISTRY_URL} to your local system..."
+# show list of images from the v1 registry
+echo -e "\n${INFO} Full list of images from ${V1_REGISTRY_URL} to be migrated:"
 for i in ${FULL_IMAGE_LIST}
 do
+  echo ${V1_REGISTRY_URL}/${i}
+done
+echo -e "${OK} End full list of images from ${V1_REGISTRY_URL}"
+
+# pull all images to local system
+echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY_URL} to your local system"
+for i in ${FULL_IMAGE_LIST}
+do
+  echo -e "${INFO} Pulling ${V1_REGISTRY_URL}/${i}"
   docker pull ${V1_REGISTRY_URL}/${i} || catch_error "Failed to pull ${V1_REGISTRY_URL}/${i}"
-  echo
+  echo -e "${OK} Successfully pulled ${V1_REGISTRY_URL}/${i}\n"
 done
 echo -e "${OK} Successully pulled all images from ${V1_REGISTRY_URL} to your local system"
 
@@ -87,12 +105,12 @@ if [ "${V1_REGISTRY_URL}" = "${V2_REGISTRY_URL}" ]
 then
   # retagging not needed; re-using same DNS name for v2 registry
   echo -e "${OK} Skipping re-tagging; same URL used for v1 and v2\n"
-  # notify user to swap out their registry now
+  # notify user to swtich out their registry now
   echo -en "${NOTICE} "
-  read -rsp $'Swap v1 and v2 registries and then press any key to continue...\n' -n1 key
+  read -rsp $'Make the necessary changes to switch your v1 and v2 registries and then press any key to continue\n' -n1 key
 else
   # re-tag images; different DNS name used for v2 registry
-  echo -e "\nRetagging all images from '${V1_REGISTRY_URL}' to '${V2_REGISTRY_URL}'..."
+  echo -e "\n${INFO} Retagging all images from '${V1_REGISTRY_URL}' to '${V2_REGISTRY_URL}'"
   for i in ${FULL_IMAGE_LIST}
   do
     docker tag -f ${V1_REGISTRY_URL}/${i} ${V2_REGISTRY_URL}/${i} || catch_error "Failed to retag ${V1_REGISTRY_URL}/${i} to ${V2_REGISTRY_URL}/${i}"
@@ -102,29 +120,44 @@ else
 fi
 
 # verify V2_REGISTRY_URL is reporting as a v2 registry
-if $(curl -Is https://${V2_REGISTRY_URL}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1)
-then
-  echo -e "\n${OK} Verified v2 registry (${V2_REGISTRY_URL}) is available"
-else
-  echo -e "\n${ERROR} v2 registry (${V2_REGISTRY_URL}) is not available"
-  exit 1
-fi
+V2_READY="false"
+while [ "${V2_READY}" = "false" ]
+do
+  # check to see if V2_REGISTRY_URL is returning the proper api version string
+  if $(curl -Is https://${V2_REGISTRY_URL}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
+  then
+    # api version indicates v2; ok to proceed
+    V2_READY="true"
+  else
+    # api version either not returned or not showing proper version
+    echo -e "\n${ERROR} v2 registry (${V2_REGISTRY_URL}) is not available"
+    echo -en "${NOTICE} "
+    read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry (ctrl+c to abort)\n' -n1 key
+  fi
+done
+# v2 registry verified as available
+echo -e "\n${OK} Verified v2 registry (${V2_REGISTRY_URL}) is available"
 
 # perform a docker login to the v2 registry
-echo -e "\nPlease login for ${V2_REGISTRY_URL}:"
-docker login ${V2_REGISTRY_URL} || catch_error "Failed to login to ${V2_REGISTRY_URL}"
+echo -e "\n${NOTICE} Please login for ${V2_REGISTRY_URL}:"
+LOGIN_SUCCESS="false"
+while [ "$LOGIN_SUCCESS" = "false" ]
+do
+  docker login ${V2_REGISTRY_URL} && LOGIN_SUCCESS="true"
+done
 
 # push images to v2 registry
-echo -e "\nPushing all images to ${V2_REGISTRY_URL}..."
+echo -e "\n${INFO} Pushing all images to ${V2_REGISTRY_URL}"
 for i in ${FULL_IMAGE_LIST}
 do
+  echo -e "${INFO} Pushing ${V2_REGISTRY_URL}/${i}"
   docker push ${V2_REGISTRY_URL}/${i} || catch_error "Failed to push ${V2_REGISTRY_URL}/${i}"
-  echo
+  echo -e "${OK} Successfully pushed ${V2_REGISTRY_URL}/${i}\n"
 done
 echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY_URL}"
 
 # cleanup images from local docker engine
-echo -e "\nCleaning up images from local Docker engine..."
+echo -e "\n${INFO} Cleaning up images from local Docker engine"
 if [ "${V1_REGISTRY_URL}" = "${V2_REGISTRY_URL}" ]
 then
   for i in ${FULL_IMAGE_LIST}
