@@ -11,15 +11,21 @@ To pull this image:
 ```
 docker run -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -e V1_REGISTRY_URL=v1.registry.fqdn \
-  -e V2_REGISTRY_URL=v2.registry.fqdn \
+  -e V1_REGISTRY=v1.registry.fqdn \
+  -e V2_REGISTRY=v2.registry.fqdn \
   docker/migrator
 ```
 
-## Prerequisites
-This migration assumes that you have a v1 registry and you are planning on migrating to a v2 registry.  The new v2 registry can either be set up using a different DNS name or the same DNS name.  Both scenarios work in this case.  If you are utilizing the same DNS name for your new v2 registry, set both `V1_REGISTRY_URL` and `V2_REGISTRY_URL` to the same value.
+_Note_: The `V1_REGISTRY` and `V2_REGISTRY` environment variables should be the DNS hostname *only*.  Do not include `https://`.
 
-It is suggested that you run this container on a Docker engine that is located near your registry as you will need to pull down every image from your v1 registry and push it back to the v2 registry to complete the migration.  This also means that you will need enough disk space on your local Docker engine to store all of the images.
+## Prerequisites
+This migration tool assumes the following:
+
+ * You have a v1 registry and you are planning on migrating to a v2 registry
+ * Both registries are running over HTTPS; HTTP is not supported by this tool
+ * The new v2 registry can either be running using a different DNS name or the same DNS name as the v1 registry - both scenarios work in this case.  If you are utilizing the same DNS name for your new v2 registry, set both `V1_REGISTRY` and `V2_REGISTRY` to the same value.
+
+It is suggested that you run this container on a Docker engine that is located near your registry as you will need to pull down every image from your v1 registry and push it back to the v2 registry to complete the migration.  This also means that you will need enough disk space on your local Docker engine to temporarily store all of the images.
 
 ## How Migration Works
 The migration occurs using an automated script inside of the Docker container.  Running using the above usage will work as expected.
