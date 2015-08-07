@@ -13,10 +13,20 @@ docker run -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e V1_REGISTRY=v1.registry.fqdn \
   -e V2_REGISTRY=v2.registry.fqdn \
+  -e ERROR_ACTION=prompt \
   docker/migrator
 ```
 
-_Note_: The `V1_REGISTRY` and `V2_REGISTRY` environment variables should be the DNS hostname *only*.  Do not include `https://`.
+### Environment Variables
+The following environment variables can be set:
+
+ * `V1_REGISTRY` - (_Required_) DNS hostname of your v1 registry (Do not include `https://`)
+ * `V2_REGISTRY` - (_Required_) DNS hostname of your v2 registry (Do not include `https://`)
+ * `ERROR_ACTION` - (_Optional_) Sets the default action on error for pushes and pulls)
+  * `prompt` - (_Default_) Prompt for user input as to what action to take on error
+  * `retry` - Retry the failed action on error (may cause infinite loop of failure)
+  * `skip` - Log the error and continue migration on error
+  * `abort` - Abort the migration on error
 
 ## Prerequisites
 This migration tool assumes the following:
