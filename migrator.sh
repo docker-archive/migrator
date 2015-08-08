@@ -20,12 +20,120 @@ initialize_migrator() {
 
   # trap for ctrl+c
   trap 'catch_error User exited' SIGINT
+
+  # set default error action to prompt if none provided
+  ERROR_ACTION=${ERROR_ACTION:-prompt}
 }
 
-# error catching
+# generic error catching
 catch_error(){
   echo -e "\n${ERROR} ${@}"
+  echo -e "${ERROR} Migration from v1 to v2 failed!"
   exit 1
+}
+
+# catch push/pull error
+catch_push_pull_error() {
+  # set environment variables to handle arguments
+  ACTION="${1}"
+  IMAGE="${2}"
+  TEMP_ERROR_ACTION=${3:-${ERROR_ACTION}}
+
+  # perform action based off of error action
+  case $TEMP_ERROR_ACTION in
+    prompt)
+      # prompt user for course of action
+      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}"
+      echo -en "\n${NOTICE} "
+      read -rp $"Retry, skip, or abort? {r|s|a} " -n1 RESPONSE; echo
+
+      # act based on user response
+      case ${RESPONSE} in
+        r|R)
+          # re-run function with retry
+          catch_push_pull_error "${ACTION}" "${IMAGE}" "retry"
+          ;;
+        s|S)
+          # re-run function with skip
+          catch_push_pull_error "${ACTION}" "${IMAGE}" "skip"
+          ;;
+        a|A)
+          # re-run function with abort
+          catch_push_pull_error "${ACTION}" "${IMAGE}" "abort"
+          ;;
+        *)
+          # invalid user response; re-run function with prompt
+          echo -e "\n${ERROR} Invalid response"
+          catch_push_pull_error "${ACTION}" "${IMAGE}" "prompt"
+          ;;
+      esac
+      ;;
+    retry)
+      # run push or pull again
+      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; retrying\n"
+      push_pull_image "${ACTION}" "${IMAGE}"
+      ;;
+    skip)
+      # skip push or pull and proceeed
+      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; skipping\n"
+      ;;
+    abort)
+      # abort and exit migration
+      catch_error "Failed to ${ACTION} ${IMAGE}; aborting"
+      ;;
+  esac
+}
+
+# catch retag error
+catch_retag_error() {
+  # set environment variables to handle arguments
+  SOURCE_IMAGE="${1}"
+  DESTINATION_IMAGE="${2}"
+  TEMP_ERROR_ACTION=${3:-${ERROR_ACTION}}
+
+  # perform action based off of error action
+  case $TEMP_ERROR_ACTION in
+    prompt)
+      # prompt user for course of action
+      echo -e "${ERROR} Failed to retag ${SOURCE_IMAGE} > ${DESTINATION_IMAGE}"
+      echo -en "\n${NOTICE} "
+      read -rp $"Retry, skip, or abort? {r|s|a} " -n1 RESPONSE; echo
+
+      # act based on user response
+      case ${RESPONSE} in
+        r|R)
+          # re-run function with retry
+          catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "retry"
+          ;;
+        s|S)
+          # re-run function with skip
+          catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "skip"
+          ;;
+        a|A)
+          # re-run function with abort
+          catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "abort"
+          ;;
+        *)
+          # invalid user response; re-run function with prompt
+          echo -e "\n${ERROR} Invalid response"
+          catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "prompt"
+          ;;
+      esac
+      ;;
+    retry)
+      # run retag again
+      echo -e "${ERROR} Failed to retag ${IMAGE}; retrying\n"
+      retag_image "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
+      ;;
+    skip)
+      # skip retag and proceed
+      echo -e "${ERROR} Failed to retag ${IMAGE}; skipping\n"
+      ;;
+    abort)
+      # abort and exit migration
+      catch_error "Failed to retag ${IMAGE}; aborting"
+      ;;
+  esac
 }
 
 # verify requirements met for script to execute properly
@@ -104,14 +212,43 @@ show_v1_image_list() {
   read -rsp $"Press any key to begin migration process [ctrl+c to abort]" -n1 key; echo
 }
 
+# push/pull image
+push_pull_image() {
+  # get action and image name passed
+  ACTION="${1}"
+  IMAGE="${2}"
+
+  # check the action and act accordingly
+  case ${ACTION} in
+    push)
+      # push image
+      echo -e "${INFO} Pushing ${IMAGE}"
+      (docker push ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "push" "${IMAGE}"
+      ;;
+    pull)
+      # pull image
+      echo -e "${INFO} Pulling ${IMAGE}"
+      (docker pull ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "pull" "${IMAGE}"
+      ;;
+  esac
+}
+
+# retag image
+retag_image() {
+  # get source and destination image names passed
+  SOURCE_IMAGE="${1}"
+  DESTINATION_IMAGE="${2}"
+
+  # retag image
+  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} ${V1_REGISTRY}/${i} > ${V2_REGISTRY}/${i}") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
+}
+
 # pull all images to local system
 pull_images_from_v1() {
   echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
   for i in ${FULL_IMAGE_LIST}
   do
-    echo -e "${INFO} Pulling ${V1_REGISTRY}/${i}"
-    docker pull ${V1_REGISTRY}/${i} || catch_error "Failed to pull ${V1_REGISTRY}/${i}"
-    echo -e "${OK} Successfully pulled ${V1_REGISTRY}/${i}\n"
+    push_pull_image "pull" "${V1_REGISTRY}/${i}"
   done
   echo -e "${OK} Successully pulled all images from ${V1_REGISTRY} to your local system"
 }
@@ -130,8 +267,7 @@ check_registry_swap_or_retag() {
     echo -e "\n${INFO} Retagging all images from '${V1_REGISTRY}' to '${V2_REGISTRY}'"
     for i in ${FULL_IMAGE_LIST}
     do
-      docker tag -f ${V1_REGISTRY}/${i} ${V2_REGISTRY}/${i} || catch_error "Failed to retag ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i}"
-      echo -e "${OK} ${V1_REGISTRY}/${i} > ${V2_REGISTRY}/${i}"
+      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
     done
     echo -e "${OK} Successfully retagged all images"
   fi
@@ -163,9 +299,7 @@ push_images_to_v2() {
   echo -e "\n${INFO} Pushing all images to ${V2_REGISTRY}"
   for i in ${FULL_IMAGE_LIST}
   do
-    echo -e "${INFO} Pushing ${V2_REGISTRY}/${i}"
-    docker push ${V2_REGISTRY}/${i} || catch_error "Failed to push ${V2_REGISTRY}/${i}"
-    echo -e "${OK} Successfully pushed ${V2_REGISTRY}/${i}\n"
+    push_pull_image "push" "${V2_REGISTRY}/${i}"
   done
   echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY}"
 }
