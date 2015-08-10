@@ -25,6 +25,33 @@ initialize_migrator() {
   ERROR_ACTION=${ERROR_ACTION:-prompt}
 }
 
+# verify requirements met for script to execute properly
+verify_ready() {
+  # verify v1 registry variable has been passed
+  if [ -z "${V1_REGISTRY}" ]
+  then
+    catch_error "${BOLD}V1_REGISTRY${CLEAR} environment variable required"
+  fi
+
+  # verify v2 registry variable has been passed
+  if [ -z "${V2_REGISTRY}" ]
+  then
+    catch_error "${BOLD}V2_REGISTRY${CLEAR} environment variable required"
+  fi
+
+  # verify valid error action
+  if [ "${ERROR_ACTION}" != "prompt" ] || [ "${ERROR_ACTION}" != "retry" ] || [ "${ERROR_ACTION}" != "skip" ] || [ "${ERROR_ACTION}" != "abort" ]
+  then
+    catch_error "${BOLD}ERROR_ACTION${CLEAR} environment variable (${ERROR_ACTION}) invalid; must be one of the following: ${BOLD}prompt${CLEAR}, ${BOLD}retry${CLEAR}, ${BOLD}skip${CLEAR}, or ${BOLD}abort${CLEAR}"
+  fi
+
+  # verify docker daemon is accessible
+  if ! $(docker info > /dev/null 2>&1)
+  then
+    catch_error "Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
+  fi
+}
+
 # generic error catching
 catch_error(){
   echo -e "\n${ERROR} ${@}"
@@ -134,27 +161,6 @@ catch_retag_error() {
       catch_error "Failed to retag ${IMAGE}; aborting"
       ;;
   esac
-}
-
-# verify requirements met for script to execute properly
-verify_ready() {
-  # verify v1 registry variable has been passed
-  if [ -z "${V1_REGISTRY}" ]
-  then
-    catch_error "${BOLD}V1_REGISTRY${CLEAR} environment variable required"
-  fi
-
-  # verify v2 registry variable has been passed
-  if [ -z "${V2_REGISTRY}" ]
-  then
-    catch_error "${BOLD}V2_REGISTRY${CLEAR} environment variable required"
-  fi
-
-  # verify docker daemon is accessible
-  if ! $(docker info > /dev/null 2>&1)
-  then
-    catch_error "Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
-  fi
 }
 
 # perform a docker login
