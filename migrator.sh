@@ -40,7 +40,7 @@ verify_ready() {
   fi
 
   # verify valid error action
-  if [ "${ERROR_ACTION}" != "prompt" ] || [ "${ERROR_ACTION}" != "retry" ] || [ "${ERROR_ACTION}" != "skip" ] || [ "${ERROR_ACTION}" != "abort" ]
+  if [ "${ERROR_ACTION}" != "prompt" ] && [ "${ERROR_ACTION}" != "retry" ] && [ "${ERROR_ACTION}" != "skip" ] && [ "${ERROR_ACTION}" != "abort" ]
   then
     catch_error "${BOLD}ERROR_ACTION${CLEAR} environment variable (${ERROR_ACTION}) invalid; must be one of the following: ${BOLD}prompt${CLEAR}, ${BOLD}retry${CLEAR}, ${BOLD}skip${CLEAR}, or ${BOLD}abort${CLEAR}"
   fi
