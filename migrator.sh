@@ -23,6 +23,9 @@ initialize_migrator() {
 
   # set default error action to prompt if none provided
   ERROR_ACTION=${ERROR_ACTION:-prompt}
+
+  # set default to prompt user for validation
+  USER_PROMPT=${USER_PROMPT:-true}
 }
 
 # verify requirements met for script to execute properly
@@ -43,6 +46,12 @@ verify_ready() {
   if [ "${ERROR_ACTION}" != "prompt" ] && [ "${ERROR_ACTION}" != "retry" ] && [ "${ERROR_ACTION}" != "skip" ] && [ "${ERROR_ACTION}" != "abort" ]
   then
     catch_error "${BOLD}ERROR_ACTION${CLEAR} environment variable (${ERROR_ACTION}) invalid; must be one of the following: ${BOLD}prompt${CLEAR}, ${BOLD}retry${CLEAR}, ${BOLD}skip${CLEAR}, or ${BOLD}abort${CLEAR}"
+  fi
+
+  # verify valid user prompt variable
+  if [ "${USER_PROMPT}" != "true" ] && [ "${USER_PROMPT}" != "false" ]
+  then
+    catch_error "${BOLD}USER_PROMPT${CLEAR} environment variable (${USER_PROMPT}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
   fi
 
   # verify docker daemon is accessible
@@ -165,13 +174,25 @@ catch_retag_error() {
 
 # perform a docker login
 docker_login() {
-  echo -e "${NOTICE} Please login to ${1}:"
-  LOGIN_SUCCESS="false"
-  # keep retrying docker login until successful
-  while [ "$LOGIN_SUCCESS" = "false" ]
-  do
-    docker login ${1} && LOGIN_SUCCESS="true"
-  done
+  REGISTRY="${1}"
+  USERNAME="${2}"
+  PASSWORD="${3}"
+  EMAIL="${4}"
+
+  if [ -n "${USERNAME}" ] && [ -n "${PASSWORD}" ] && [ -n "${EMAIL}" ]
+  then
+    # docker login with credentials provided
+    docker login --username="${USERNAME}" --password="${PASSWORD}" --email="${EMAIL}" ${REGISTRY} || catch_error "Failed to login using provided credentials"
+  else
+    # prompt for credentials for docker login
+    echo -e "${NOTICE} Please login to ${REGISTRY}:"
+    LOGIN_SUCCESS="false"
+    # keep retrying docker login until successful
+    while [ "$LOGIN_SUCCESS" = "false" ]
+    do
+      docker login ${REGISTRY} && LOGIN_SUCCESS="true"
+    done
+  fi
 }
 
 # decode username/password for a registry to query the API
@@ -214,8 +235,14 @@ show_v1_image_list() {
     echo ${V1_REGISTRY}/${i}
   done
   echo -e "${OK} End full list of images from ${V1_REGISTRY}"
-  echo -en "\n${NOTICE} "
-  read -rsp $"Press any key to begin migration process [ctrl+c to abort]" -n1 key; echo
+
+  # check to see if user should be prompted
+  if ${USER_PROMPT}
+  then
+    # prompt user to press any key to begin migration
+    echo -en "\n${NOTICE} "
+    read -rsp $"Press any key to begin migration process [ctrl+c to abort]" -n1 key; echo
+  fi
 }
 
 # push/pull image
@@ -341,14 +368,14 @@ migration_complete() {
 main() {
   initialize_migrator
   verify_ready
-  docker_login ${V1_REGISTRY}
+  docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
   decode_auth ${V1_REGISTRY}
   query_v1_images
   show_v1_image_list
   pull_images_from_v1
   check_registry_swap_or_retag
   verify_v2_ready
-  docker_login ${V2_REGISTRY}
+  docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   push_images_to_v2
   cleanup_local_engine
   migration_complete
