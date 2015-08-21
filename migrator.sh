@@ -203,7 +203,15 @@ decode_auth() {
 # query the v1 registry for a list of all images
 query_v1_images() {
   echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
-  IMAGE_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
+  # check to see if a filter pattern was provided
+  if [ -z "${V1_REPO_FILTER}" ]
+  then
+    # no filter pattern was defined, get all repos
+    IMAGE_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
+  else
+    # filter pattern defined, use grep to match repos w/regex capabilites
+    IMAGE_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
+  fi
 
   # loop through all images in v1 registry to get tags for each
   for i in ${IMAGE_LIST}
