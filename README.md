@@ -34,7 +34,8 @@ The following environment variables can be set:
  * `USER_PROMPT` - Sets the default action for user prompts (non-error)
   * `true` - (_Default_) Prompts user for input/validation
   * `false` - Skips user prompt and automatically proceeds
- * `V1_REPO_FILTER` - Search filter to limit the scope of the images to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
+ * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
+  * *Note*: This only filters the repositories returned from the v1 search API, not the individual tags
  * `V1_USERNAME` - Username used for `docker login` to the v1 registry
  * `V1_PASSWORD` - Password used for `docker login` to the v1 registry
  * `V1_EMAIL` - Email used for `docker login` to the v1 registry
