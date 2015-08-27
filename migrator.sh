@@ -26,6 +26,9 @@ initialize_migrator() {
 
   # set default to prompt user for validation
   USER_PROMPT=${USER_PROMPT:-true}
+
+  # set default to require docker login
+  NO_LOGIN=${NO_LOGIN:-false}
 }
 
 # verify requirements met for script to execute properly
