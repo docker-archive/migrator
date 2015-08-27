@@ -376,7 +376,7 @@ migration_complete() {
 main() {
   initialize_migrator
   verify_ready
-  if [[ "${NO_LOGIN}" != "true" ]]; then
+  if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
   fi
   decode_auth ${V1_REGISTRY}
@@ -385,7 +385,7 @@ main() {
   pull_images_from_v1
   check_registry_swap_or_retag
   verify_v2_ready
-  if [[ "${NO_LOGIN}" != "true" ]]; then
+  if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
   push_images_to_v2
