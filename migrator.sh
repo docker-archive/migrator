@@ -376,14 +376,18 @@ migration_complete() {
 main() {
   initialize_migrator
   verify_ready
-  docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
+  if [ "${NO_LOGIN}" != "true" ]; then
+    docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
+  fi
   decode_auth ${V1_REGISTRY}
   query_v1_images
   show_v1_image_list
   pull_images_from_v1
   check_registry_swap_or_retag
   verify_v2_ready
-  docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+  if [ "${NO_LOGIN}" != "true" ]; then
+    docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+  fi
   push_images_to_v2
   cleanup_local_engine
   migration_complete
