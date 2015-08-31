@@ -210,14 +210,14 @@ query_v1_images() {
   if [ -z "${V1_REPO_FILTER}" ]
   then
     # no filter pattern was defined, get all repos
-    IMAGE_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
+    REPO_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
   else
     # filter pattern defined, use grep to match repos w/regex capabilites
-    IMAGE_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
+    REPO_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
   fi
 
-  # loop through all images in v1 registry to get tags for each
-  for i in ${IMAGE_LIST}
+  # loop through all repos in v1 registry to get tags for each
+  for i in ${REPO_LIST}
   do
     # get list of tags for image i
     IMAGE_TAGS=$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
