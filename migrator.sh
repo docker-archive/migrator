@@ -110,6 +110,7 @@ catch_push_pull_error() {
     retry)
       # run push or pull again
       echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; retrying\n"
+      sleep 1
       push_pull_image "${ACTION}" "${IMAGE}"
       ;;
     skip)
@@ -162,6 +163,7 @@ catch_retag_error() {
     retry)
       # run retag again
       echo -e "${ERROR} Failed to retag ${IMAGE}; retrying\n"
+      sleep 1
       retag_image "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
       ;;
     skip)
@@ -200,7 +202,7 @@ docker_login() {
 
 # decode username/password for a registry to query the API
 decode_auth() {
-  AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 --decode)"
+  AUTH_CREDS="$(cat ~/.docker/config.json | jq -r '.auths."'${1}'".auth' | base64 --decode)"
 }
 
 # query the v1 registry for a list of all images
@@ -220,7 +222,13 @@ query_v1_images() {
   for i in ${IMAGE_LIST}
   do
     # get list of tags for image i
-    IMAGE_TAGS=$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
+    if [ -z "${TAG_FILTER}" ]
+    then
+      # get list of tags for image i
+      IMAGE_TAGS=$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
+    else
+      IMAGE_TAGS=$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]' | grep ${TAG_FILTER})
+    fi
 
     # loop through tags to create list of full image names w/tags
     for j in ${IMAGE_TAGS}
@@ -293,9 +301,37 @@ pull_images_from_v1() {
   for i in ${FULL_IMAGE_LIST}
   do
     push_pull_image "pull" "${V1_REGISTRY}/${i}"
+    retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
+    push_pull_image "push" "${V2_REGISTRY}/${i}"
   done
   echo -e "${OK} Successully pulled all images from ${V1_REGISTRY} to your local system"
 }
+
+pull_retag_push_remove_image() {
+  GLOBIMAGE="${1}"
+
+  echo -e "\n${INFO} Processing ${GLOBIMAGE}"
+
+  IMAGE_NAME=$(echo ${GLOBIMAGE} | cut -d ':' -f1)
+  TAG=$(echo ${GLOBIMAGE} | cut -d ':' -f2)
+
+  STATUSCODE=$(curl -s -o /dev/null -w "%{http_code}" https://${AUTH_CREDS}@${V2_REGISTRY}/v2/${IMAGE_NAME}/manifests/${TAG})
+  if [[ $STATUSCODE -eq "200" ]]; then
+    echo -e "\n${INFO} Tag exists, skipping ${GLOBIMAGE}"
+  else
+    push_pull_image "pull" "${V1_REGISTRY}/${GLOBIMAGE}"
+    retag_image "${V1_REGISTRY}/${GLOBIMAGE}" "${V2_REGISTRY}/${GLOBIMAGE}"
+    push_pull_image "push" "${V2_REGISTRY}/${GLOBIMAGE}"
+  fi
+}
+
+push_pull_retag_images() {
+  for i in ${FULL_IMAGE_LIST}
+  do
+    pull_retag_push_remove_image "${i}"
+  done
+}
+
 
 # check to see if v1 and v2 registry share the same DNS name
 check_registry_swap_or_retag() {
@@ -383,15 +419,12 @@ main() {
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
   fi
   decode_auth ${V1_REGISTRY}
-  query_v1_images
-  show_v1_image_list
-  pull_images_from_v1
-  check_registry_swap_or_retag
-  verify_v2_ready
   if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
-  push_images_to_v2
+  query_v1_images
+  show_v1_image_list
+  push_pull_retag_images
   cleanup_local_engine
   migration_complete
 }
