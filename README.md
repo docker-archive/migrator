@@ -39,6 +39,7 @@ The following environment variables can be set:
   * `false` - (_Default_) Prompts user to login to the v1 and v2 registries
  * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
   * *Note*: This only filters the repositories returned from the v1 search API, not the individual tags
+ * `TAG_FILTER` - Search filter to limit tags to migrate
  * `V1_USERNAME` - Username used for `docker login` to the v1 registry
  * `V1_PASSWORD` - Password used for `docker login` to the v1 registry
  * `V1_EMAIL` - Email used for `docker login` to the v1 registry
