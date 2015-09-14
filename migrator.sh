@@ -29,6 +29,11 @@ initialize_migrator() {
 
   # set default to require docker login
   NO_LOGIN=${NO_LOGIN:-false}
+
+  # Default is to require curl to perform certificate validation
+  USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
+  [ $USE_INSECURE_CURL == 'true' ] && INSECURE_CURL='-k' || INSECURE_CURL=''
+
 }
 
 # verify requirements met for script to execute properly
@@ -210,17 +215,17 @@ query_v1_images() {
   if [ -z "${V1_REPO_FILTER}" ]
   then
     # no filter pattern was defined, get all repos
-    REPO_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
+    REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
   else
     # filter pattern defined, use grep to match repos w/regex capabilites
-    REPO_LIST="$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
+    REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
   fi
 
   # loop through all repos in v1 registry to get tags for each
   for i in ${REPO_LIST}
   do
     # get list of tags for image i
-    IMAGE_TAGS=$(curl -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
+    IMAGE_TAGS=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
 
     # loop through tags to create list of full image names w/tags
     for j in ${IMAGE_TAGS}
@@ -323,7 +328,7 @@ verify_v2_ready() {
   while [ "${V2_READY}" = "false" ]
   do
     # check to see if V2_REGISTRY is returning the proper api version string
-    if $(curl -Is https://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
+    if $(curl ${INSECURE_CURL} -Is https://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
