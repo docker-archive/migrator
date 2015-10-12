@@ -236,63 +236,62 @@ decode_auth() {
   fi
 }
 
-# query the v1 registry for a list of all images
-query_v1_images() {
+# query the source registry for a list of all images
+query_source_images() {
   echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
-  # check to see if a filter pattern was provided
-  if [ -z "${V1_REPO_FILTER}" ]
+  # check to see if migrating from docker hub or a v1 registry
+  if [ "${DOCKER_HUB}" = "true" ]
   then
-    # no filter pattern was defined, get all repos
-    REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
+    # get token to be able to talk to Docker Hub
+    TOKEN=$(curl ${INSECURE_CURL} -s -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+    # get list of repos for that user account
+    REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/?page_size=100000 | jq -r '.results|.[]|.name')
+
+    # build a list of all images & tags
+    for i in ${REPO_LIST}
+    do
+      # get tags for repo
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name')
+
+      # build a list of images from tags
+      for j in ${IMAGE_TAGS}
+      do
+        # add each tag to list
+        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${DOCKER_HUB_USERNAME}/${i}:${j}"
+      done
+    done
   else
-    # filter pattern defined, use grep to match repos w/regex capabilites
-    REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
+    # check to see if a filter pattern was provided
+    if [ -z "${V1_REPO_FILTER}" ]
+    then
+      # no filter pattern was defined, get all repos
+      REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
+    else
+      # filter pattern defined, use grep to match repos w/regex capabilites
+      REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
+    fi
+
+    # loop through all repos in v1 registry to get tags for each
+    for i in ${REPO_LIST}
+    do
+      # get list of tags for image i
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
+
+      # loop through tags to create list of full image names w/tags
+      for j in ${IMAGE_TAGS}
+      do
+        # check if an image is a 'library' image without a namespace
+        if [ ${i:0:8} = "library/" ]
+        then
+          # cut off 'library/' from beginning of image
+          i="${i:8}"
+        fi
+        # add image to list
+        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
+      done
+    done
   fi
-
-  # loop through all repos in v1 registry to get tags for each
-  for i in ${REPO_LIST}
-  do
-    # get list of tags for image i
-    IMAGE_TAGS=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
-
-    # loop through tags to create list of full image names w/tags
-    for j in ${IMAGE_TAGS}
-    do
-      # check if an image is a 'library' image without a namespace
-      if [ ${i:0:8} = "library/" ]
-      then
-        # cut off 'library/' from beginning of image
-        i="${i:8}"
-      fi
-      # add image to list
-      FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
-    done
-  done
-  echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
-}
-
-# query docker hub for a list of all images
-query_docker_hub_images() {
-  echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
-  # get token to be able to talk to Docker Hub
-  TOKEN=$(curl ${INSECURE_CURL} -s -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
-
-  # get list of repos for that user account
-  REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/?page_size=100000 | jq -r '.results|.[]|.name')
-
-  # build a list of all images & tags
-  for i in ${REPO_LIST}
-  do
-    # get tags for repo
-    IMAGE_TAGS=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name')
-
-    # build a list of images from tags
-    for j in ${IMAGE_TAGS}
-    do
-      # add each tag to list
-      FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${DOCKER_HUB_USERNAME}/${i}:${j}"
-    done
-  done
   echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
 }
 
@@ -451,17 +450,12 @@ main() {
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
   fi
   decode_auth ${V1_REGISTRY}
-  # check to see if migrating from docker hub or a v1 registry
-  if [ "${DOCKER_HUB}" = "true" ]
-  then
-    query_docker_hub_images
-  else
-    query_v1_images
-  fi
+  query_source_images
   show_source_image_list
   pull_images_from_source
   check_registry_swap_or_retag
   verify_v2_ready
+  # check to see if NO_LOGIN is set
   if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
