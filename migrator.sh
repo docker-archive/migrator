@@ -189,7 +189,8 @@ catch_retag_error() {
 
 # perform a docker login
 docker_login() {
-  REGISTRY="${1}"
+  # leave REGISTRY empty if v1 is docker hub (index.docker.io); else set REGISTRY to v1
+  [ ${1} == "index.docker.io" ] && REGISTRY="" || REGISTRY="${1}"
   USERNAME="${2}"
   PASSWORD="${3}"
   EMAIL="${4}"
@@ -212,7 +213,22 @@ docker_login() {
 
 # decode username/password for a registry to query the API
 decode_auth() {
-  AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 --decode)"
+  # check to see if the v1 is specified as docker hub (index.docker.io) to see if individual username/password is required
+  if [ "${1}" = "index.docker.io" ]
+  then
+    # set DOCKER_HUB to true for future use
+    DOCKER_HUB="true"
+
+    # decode username and password as a pair
+    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 --decode)"
+
+    # decode individual username and password
+    DOCKER_HUB_USERNAME=$(echo ${AUTH_CREDS} | awk -F ':' '{print $1}')
+    DOCKER_HUB_PASSWORD=$(echo ${AUTH_CREDS} | awk -F ':' '{print $2}')
+  else
+    # decode username and password as a pair
+    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 --decode)"
+  fi
 }
 
 # query the v1 registry for a list of all images
@@ -250,13 +266,50 @@ query_v1_images() {
   echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
 }
 
-# show list of images from the v1 registry
-show_v1_image_list() {
-  echo -e "\n${INFO} Full list of images from ${V1_REGISTRY} to be migrated:"
-  for i in ${FULL_IMAGE_LIST}
+# query docker hub for a list of all images
+query_docker_hub_images() {
+  echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
+  # get token to be able to talk to Docker Hub
+  TOKEN=$(curl ${INSECURE_CURL} -s -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+  # get list of repos for that user account
+  REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/?page_size=100000 | jq -r '.results|.[]|.name')
+
+  # build a list of all images & tags
+  for i in ${REPO_LIST}
   do
-    echo ${V1_REGISTRY}/${i}
+    # get tags for repo
+    IMAGE_TAGS=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name')
+
+    # build a list of images from tags
+    for j in ${IMAGE_TAGS}
+    do
+      # add each tag to list
+      FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${DOCKER_HUB_USERNAME}/${i}:${j}"
+    done
   done
+  echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
+}
+
+# show list of images from docker hub or the v1 registry
+show_source_image_list() {
+  echo -e "\n${INFO} Full list of images from ${V1_REGISTRY} to be migrated:"
+
+  # check to see if migrating from docker hub
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    # output list of docker hub images
+    for i in ${FULL_IMAGE_LIST}
+    do
+      echo ${i}
+    done
+  else
+    # output list with v1 registry name prefix added
+    for i in ${FULL_IMAGE_LIST}
+    do
+      echo ${V1_REGISTRY}/${i}
+    done
+  fi
   echo -e "${OK} End full list of images from ${V1_REGISTRY}"
 
   # check to see if user should be prompted
@@ -295,21 +348,37 @@ retag_image() {
   SOURCE_IMAGE="${1}"
   DESTINATION_IMAGE="${2}"
 
-  # retag image
-  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} ${V1_REGISTRY}/${i} > ${V2_REGISTRY}/${i}") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
+  # check to see if migrating from docker hub or a v1 registry
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    # retag image
+    (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} ${i} > ${V2_REGISTRY}/${i}") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
+  else
+    # retag image
+    (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} ${V1_REGISTRY}/${i} > ${V2_REGISTRY}/${i}") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
+  fi
 }
 
 # pull all images to local system
-pull_images_from_v1() {
+pull_images_from_source() {
   echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
-  for i in ${FULL_IMAGE_LIST}
-  do
-    push_pull_image "pull" "${V1_REGISTRY}/${i}"
-  done
+  # check to see if migrating from docker hub or a v1 registry
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    for i in ${FULL_IMAGE_LIST}
+    do
+      push_pull_image "pull" "${i}"
+    done
+  else
+    for i in ${FULL_IMAGE_LIST}
+    do
+      push_pull_image "pull" "${V1_REGISTRY}/${i}"
+    done
+  fi
   echo -e "${OK} Successully pulled all images from ${V1_REGISTRY} to your local system"
 }
 
-# check to see if v1 and v2 registry share the same DNS name
+# check to see if docker hub/v1 and v2 registry share the same DNS name
 check_registry_swap_or_retag() {
   if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
   then
@@ -321,10 +390,19 @@ check_registry_swap_or_retag() {
   else
     # re-tag images; different DNS name used for v2 registry
     echo -e "\n${INFO} Retagging all images from '${V1_REGISTRY}' to '${V2_REGISTRY}'"
-    for i in ${FULL_IMAGE_LIST}
-    do
-      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
-    done
+    # check to see if migrating from docker hub or a v1 registry
+    if [ "${DOCKER_HUB}" = "true" ]
+    then
+      for i in ${FULL_IMAGE_LIST}
+      do
+        retag_image "${i}" "${V2_REGISTRY}/${i}"
+      done
+    else
+      for i in ${FULL_IMAGE_LIST}
+      do
+        retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
+      done
+    fi
     echo -e "${OK} Successfully retagged all images"
   fi
 }
@@ -363,21 +441,34 @@ push_images_to_v2() {
 # cleanup images from local docker engine
 cleanup_local_engine() {
   echo -e "\n${INFO} Cleaning up images from local Docker engine"
-  # see if re-tagged images exist and remove accordingly
-  if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
+
+  # check to see if migrating from docker hub
+  if [ "${DOCKER_HUB}" = "true" ]
   then
+    # remove images pulled from docker hub and retagged for the v2 registry
     for i in ${FULL_IMAGE_LIST}
     do
       # remove docker image/tags; allow failures here (in case image is actually in use)
-      docker rmi ${V1_REGISTRY}/${i} || true
-    done
-  else
-    for i in ${FULL_IMAGE_LIST}
-    do
-      # remove docker image/tags; allow failures here (in case image is actually in use)
-      docker rmi ${V1_REGISTRY}/${i} || true
+      docker rmi ${i} || true
       docker rmi ${V2_REGISTRY}/${i} || true
     done
+  else
+    # see if re-tagged images exist and remove accordingly
+    if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
+    then
+      for i in ${FULL_IMAGE_LIST}
+      do
+        # remove docker image/tags; allow failures here (in case image is actually in use)
+        docker rmi ${V1_REGISTRY}/${i} || true
+      done
+    else
+      for i in ${FULL_IMAGE_LIST}
+      do
+        # remove docker image/tags; allow failures here (in case image is actually in use)
+        docker rmi ${V1_REGISTRY}/${i} || true
+        docker rmi ${V2_REGISTRY}/${i} || true
+      done
+    fi
   fi
   echo -e "${OK} Successfully cleaned up images from local Docker engine"
 }
@@ -391,13 +482,20 @@ migration_complete() {
 main() {
   initialize_migrator
   verify_ready
+  # check to see if NO_LOGIN is set
   if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
   fi
   decode_auth ${V1_REGISTRY}
-  query_v1_images
-  show_v1_image_list
-  pull_images_from_v1
+  # check to see if migrating from docker hub or a v1 registry
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    query_docker_hub_images
+  else
+    query_v1_images
+  fi
+  show_source_image_list
+  pull_images_from_source
   check_registry_swap_or_retag
   verify_v2_ready
   if [ "${NO_LOGIN}" != "true" ]; then
