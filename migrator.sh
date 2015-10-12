@@ -77,9 +77,14 @@ verify_ready() {
 }
 
 # generic error catching
-catch_error(){
+catch_error() {
   echo -e "\n${ERROR} ${@}"
-  echo -e "${ERROR} Migration from v1 to v2 failed!"
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    echo -e "${ERROR} Migration from Docker Hub to v2 failed!"
+  else
+    echo -e "${ERROR} Migration from v1 to v2 failed!"
+  fi
   exit 1
 }
 
@@ -189,7 +194,8 @@ catch_retag_error() {
 
 # perform a docker login
 docker_login() {
-  REGISTRY="${1}"
+  # leave REGISTRY empty if v1 is docker hub (docker.io); else set REGISTRY to v1
+  [ ${1} == "docker.io" ] && REGISTRY="" || REGISTRY="${1}"
   USERNAME="${2}"
   PASSWORD="${3}"
   EMAIL="${4}"
@@ -212,47 +218,114 @@ docker_login() {
 
 # decode username/password for a registry to query the API
 decode_auth() {
-  AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 --decode)"
+  # check to see if the v1 is specified as docker hub (docker.io) to see if individual username/password is required
+  if [ "${1}" = "docker.io" ]
+  then
+    # set DOCKER_HUB to true for future use
+    DOCKER_HUB="true"
+
+    # decode username and password as a pair
+    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 --decode)"
+
+    # decode individual username and password
+    DOCKER_HUB_USERNAME=$(echo ${AUTH_CREDS} | awk -F ':' '{print $1}')
+    DOCKER_HUB_PASSWORD=$(echo ${AUTH_CREDS} | awk -F ':' '{print $2}')
+  else
+    # decode username and password as a pair
+    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 --decode)"
+  fi
 }
 
-# query the v1 registry for a list of all images
-query_v1_images() {
+# query the source registry for a list of all images
+query_source_images() {
   echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
-  # check to see if a filter pattern was provided
-  if [ -z "${V1_REPO_FILTER}" ]
+  # check to see if migrating from docker hub or a v1 registry
+  if [ "${DOCKER_HUB}" = "true" ]
   then
-    # no filter pattern was defined, get all repos
-    REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name')"
-  else
-    # filter pattern defined, use grep to match repos w/regex capabilites
-    REPO_LIST="$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER})"
-  fi
+    # check to see if DOCKER_HUB_ORG has been specified
+    if [ -z "${DOCKER_HUB_ORG}" ]
+    then
+      # set NAMESPACE to DOCKER_HUB_USERNAME
+      NAMESPACE="${DOCKER_HUB_USERNAME}"
+    else
+      # set NAMESPACE to DOCKER_HUB_ORG
+      NAMESPACE="${DOCKER_HUB_ORG}"
+    fi
 
-  # loop through all repos in v1 registry to get tags for each
-  for i in ${REPO_LIST}
-  do
-    # get list of tags for image i
-    IMAGE_TAGS=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]')
+    # get token to be able to talk to Docker Hub
+    TOKEN=$(curl ${INSECURE_CURL} -s -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token) || catch_error "curl => API failure"
 
-    # loop through tags to create list of full image names w/tags
-    for j in ${IMAGE_TAGS}
+    # get list of namespaces accessible by user
+    NAMESPACES=$(curl -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/namespaces/ | jq -r '.namespaces|.[]') || catch_error "curl => API failure"
+
+    # verify NAMESPACE is in NAMESPACES to ensure proper access; abort if incorrect access
+    if ! echo ${NAMESPACES} | grep -w ${NAMESPACE} > /dev/null 2>&1
+    then
+      catch_error "The Docker Hub user ${BOLD}${DOCKER_HUB_USERNAME}${CLEAR} does not have permission to access ${BOLD}${NAMESPACE}${CLEAR}; aborting"
+    fi
+
+    # check to see if a filter pattern was provided
+    if [ -z "${V1_REPO_FILTER}" ]
+    then
+      # no filter pattern was defined, get all repos
+      REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/?page_size=100000 | jq -r '.results|.[]|.name') || catch_error "curl => API failure"
+    else
+      # filter pattern defined, use grep to match repos w/regex capabilites
+      REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/?page_size=100000 | jq -r '.results|.[]|.name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+    fi
+
+    # build a list of all images & tags
+    for i in ${REPO_LIST}
     do
-      # check if an image is a 'library' image without a namespace
-      if [ ${i:0:8} = "library/" ]
-      then
-        # cut off 'library/' from beginning of image
-        i="${i:8}"
-      fi
-      # add image to list
-      FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
+      # get tags for repo
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name') || catch_error "curl => API failure"
+
+      # build a list of images from tags
+      for j in ${IMAGE_TAGS}
+      do
+        # add each tag to list
+        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+      done
     done
-  done
+  else
+    # check to see if a filter pattern was provided
+    if [ -z "${V1_REPO_FILTER}" ]
+    then
+      # no filter pattern was defined, get all repos
+      REPO_LIST=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+    else
+      # filter pattern defined, use grep to match repos w/regex capabilites
+      REPO_LIST=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+    fi
+
+    # loop through all repos in v1 registry to get tags for each
+    for i in ${REPO_LIST}
+    do
+      # get list of tags for image i
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -s https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+
+      # loop through tags to create list of full image names w/tags
+      for j in ${IMAGE_TAGS}
+      do
+        # check if an image is a 'library' image without a namespace
+        if [ ${i:0:8} = "library/" ]
+        then
+          # cut off 'library/' from beginning of image
+          i="${i:8}"
+        fi
+        # add image to list
+        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
+      done
+    done
+  fi
   echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
 }
 
-# show list of images from the v1 registry
-show_v1_image_list() {
+# show list of images from docker hub or the v1 registry
+show_source_image_list() {
   echo -e "\n${INFO} Full list of images from ${V1_REGISTRY} to be migrated:"
+
+  # output list with v1 registry name prefix added
   for i in ${FULL_IMAGE_LIST}
   do
     echo ${V1_REGISTRY}/${i}
@@ -300,7 +373,7 @@ retag_image() {
 }
 
 # pull all images to local system
-pull_images_from_v1() {
+pull_images_from_source() {
   echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
   for i in ${FULL_IMAGE_LIST}
   do
@@ -309,7 +382,7 @@ pull_images_from_v1() {
   echo -e "${OK} Successully pulled all images from ${V1_REGISTRY} to your local system"
 }
 
-# check to see if v1 and v2 registry share the same DNS name
+# check to see if docker hub/v1 and v2 registry share the same DNS name
 check_registry_swap_or_retag() {
   if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
   then
@@ -363,6 +436,8 @@ push_images_to_v2() {
 # cleanup images from local docker engine
 cleanup_local_engine() {
   echo -e "\n${INFO} Cleaning up images from local Docker engine"
+
+  # check to see if migrating from docker hub
   # see if re-tagged images exist and remove accordingly
   if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
   then
@@ -384,22 +459,29 @@ cleanup_local_engine() {
 
 # migration complete
 migration_complete() {
-  echo -e "\n${OK} Migration from v1 to v2 complete!"
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    echo -e "\n${OK} Migration from Docker Hub to v2 complete!"
+  else
+    echo -e "\n${OK} Migration from v1 to v2 complete!"
+  fi
 }
 
 # main function
 main() {
   initialize_migrator
   verify_ready
+  # check to see if NO_LOGIN is set
   if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
   fi
   decode_auth ${V1_REGISTRY}
-  query_v1_images
-  show_v1_image_list
-  pull_images_from_v1
+  query_source_images
+  show_source_image_list
+  pull_images_from_source
   check_registry_swap_or_retag
   verify_v2_ready
+  # check to see if NO_LOGIN is set
   if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
