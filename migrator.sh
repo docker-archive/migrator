@@ -242,23 +242,49 @@ query_source_images() {
   # check to see if migrating from docker hub or a v1 registry
   if [ "${DOCKER_HUB}" = "true" ]
   then
+    # check to see if DOCKER_HUB_ORG has been specified
+    if [ -z "${DOCKER_HUB_ORG}" ]
+    then
+      # set NAMESPACE to DOCKER_HUB_USERNAME
+      NAMESPACE="${DOCKER_HUB_USERNAME}"
+    else
+      # set NAMESPACE to DOCKER_HUB_ORG
+      NAMESPACE="${DOCKER_HUB_ORG}"
+    fi
+
     # get token to be able to talk to Docker Hub
     TOKEN=$(curl ${INSECURE_CURL} -s -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
 
-    # get list of repos for that user account
-    REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/?page_size=100000 | jq -r '.results|.[]|.name')
+    # get list of namespaces accessible by user
+    NAMESPACES=$(curl -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/namespaces/ | jq -r '.namespaces|.[]')
+
+    # verify NAMESPACE is in NAMESPACES to ensure proper access; abort if incorrect access
+    if ! echo ${NAMESPACES} | grep -w ${NAMESPACE} > /dev/null 2>&1
+    then
+      catch_error "The Docker Hub user ${BOLD}${DOCKER_HUB_USERNAME}${CLEAR} does not have permission to access ${BOLD}${NAMESPACE}${CLEAR}; aborting"
+    fi
+
+    # check to see if a filter pattern was provided
+    if [ -z "${V1_REPO_FILTER}" ]
+    then
+      # no filter pattern was defined, get all repos
+      REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/?page_size=100000 | jq -r '.results|.[]|.name')
+    else
+      # filter pattern defined, use grep to match repos w/regex capabilites
+      REPO_LIST=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/?page_size=100000 | jq -r '.results|.[]|.name' | grep ${V1_REPO_FILTER})
+    fi
 
     # build a list of all images & tags
     for i in ${REPO_LIST}
     do
       # get tags for repo
-      IMAGE_TAGS=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_HUB_USERNAME}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name')
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name')
 
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
       do
         # add each tag to list
-        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${DOCKER_HUB_USERNAME}/${i}:${j}"
+        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
       done
     done
   else
