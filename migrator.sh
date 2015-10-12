@@ -30,10 +30,8 @@ initialize_migrator() {
   # set default to require docker login
   NO_LOGIN=${NO_LOGIN:-false}
 
-  # Default is to require curl to perform certificate validation
+  # set default to require curl to perform ssl certificate validation
   USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
-  [ $USE_INSECURE_CURL == 'true' ] && INSECURE_CURL='-k' || INSECURE_CURL=''
-
 }
 
 # verify requirements met for script to execute properly
@@ -60,6 +58,15 @@ verify_ready() {
   if [ "${USER_PROMPT}" != "true" ] && [ "${USER_PROMPT}" != "false" ]
   then
     catch_error "${BOLD}USER_PROMPT${CLEAR} environment variable (${USER_PROMPT}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
+  fi
+
+  # verify valid insecure curl variable
+  if [ "${USE_INSECURE_CURL}" != "true" ] && [ "${USE_INSECURE_CURL}" != "false" ]
+  then
+    catch_error "${BOLD}USE_INSECURE_CURL${CLEAR} environment variable (${USE_INSECURE_CURL}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
+  else
+    # set INSECURE_CURL environment variable to appropriate value
+    [ ${USE_INSECURE_CURL} == "true" ] && INSECURE_CURL="-k" || INSECURE_CURL=""
   fi
 
   # verify docker daemon is accessible
