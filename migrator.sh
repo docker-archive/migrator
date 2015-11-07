@@ -477,8 +477,8 @@ main() {
   # check to see if NO_LOGIN is set
   if [ "${NO_LOGIN}" != "true" ]; then
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
+    decode_auth ${V1_REGISTRY}
   fi
-  decode_auth ${V1_REGISTRY}
   query_source_images
   show_source_image_list
   pull_images_from_source
