@@ -33,7 +33,7 @@ initialize_migrator() {
   # set default to require docker login
   NO_LOGIN=${NO_LOGIN:-false}
   V1_NO_LOGIN=${V1_NO_LOGIN:-false}
-  V2_NO_LOGIN=${V1_NO_LOGIN:-false}
+  V2_NO_LOGIN=${V2_NO_LOGIN:-false}
 
   # if NO_LOGIN is true, set both v1 and v2 values to true
   if [ "${NO_LOGIN}" = "true" ]
