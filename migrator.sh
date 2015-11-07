@@ -32,6 +32,15 @@ initialize_migrator() {
 
   # set default to require docker login
   NO_LOGIN=${NO_LOGIN:-false}
+  V1_NO_LOGIN=${V1_NO_LOGIN:-false}
+  V2_NO_LOGIN=${V1_NO_LOGIN:-false}
+
+  # if NO_LOGIN is true, set both v1 and v2 values to true
+  if [ "${NO_LOGIN}" = "true" ]
+  then
+    V1_NO_LOGIN="true"
+    V2_NO_LOGIN="true"
+  fi
 
   # set default to require curl to perform ssl certificate validation
   USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
@@ -474,8 +483,8 @@ migration_complete() {
 main() {
   initialize_migrator
   verify_ready
-  # check to see if NO_LOGIN is set
-  if [ "${NO_LOGIN}" != "true" ]; then
+  # check to see if NO_LOGIN is true
+  if [ "${V1_NO_LOGIN}" != "true" ]; then
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
     decode_auth ${V1_REGISTRY}
   fi
@@ -484,8 +493,8 @@ main() {
   pull_images_from_source
   check_registry_swap_or_retag
   verify_v2_ready
-  # check to see if NO_LOGIN is set
-  if [ "${NO_LOGIN}" != "true" ]; then
+  # check to see if V2_NO_LOGIN is true
+  if [ "${V2_NO_LOGIN}" != "true" ]; then
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
   push_images_to_v2

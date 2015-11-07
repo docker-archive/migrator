@@ -36,8 +36,14 @@ The following environment variables can be set:
     * `true` - (_Default_) Prompts user for input/validation
     * `false` - Skips user prompt and automatically proceeds
   * `NO_LOGIN`
-    * `true` - Skips `docker login` for the v1 and v2 registries
+    * `true` - Skips `docker login` for both the v1 and v2 registries
     * `false` - (_Default_) Prompts user to login to the v1 and v2 registries
+  * `V1_NO_LOGIN`
+    * `true` - Skips `docker login` for the v1 registry
+    * `false` - (_Default_) Prompts user to login to the v1 registry
+  * `V2_NO_LOGIN`
+    * `true` - Skips `docker login` for the v2 registry
+    * `false` - (_Default_) Prompts user to login to the v2 registry
   * `USE_INSECURE_CURL`
     * `true` - Allows curl to perform insecure SSL connections for querying APIs
     * `false` - (_Default_) Require curl to perform secure SSL connections for querying APIs
