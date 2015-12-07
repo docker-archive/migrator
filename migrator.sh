@@ -72,13 +72,43 @@ verify_ready() {
     catch_error "${BOLD}USER_PROMPT${CLEAR} environment variable (${USER_PROMPT}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
   fi
 
+  V1_OPTIONS=""
+  V2_OPTIONS=""
+
   # verify valid insecure curl variable
   if [ "${USE_INSECURE_CURL}" != "true" ] && [ "${USE_INSECURE_CURL}" != "false" ]
   then
     catch_error "${BOLD}USE_INSECURE_CURL${CLEAR} environment variable (${USE_INSECURE_CURL}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
   else
     # set INSECURE_CURL environment variable to appropriate value
-    [ ${USE_INSECURE_CURL} == "true" ] && INSECURE_CURL="-k" || INSECURE_CURL=""
+    if [ ${USE_INSECURE_CURL} == "true" ]
+    then
+      V1_OPTIONS="$V1_OPTIONS --insecure"
+      V2_OPTIONS="$V2_OPTIONS --insecure"
+      INSECURE_CURL="--insecure"
+    else
+      INSECURE_CURL=""
+    fi
+  fi
+
+  # Use client certificates where applicable
+  if [ -f /etc/docker/certs.d/$V1_REGISTRY/client.cert ]
+  then
+    V1_OPTIONS="$V1_OPTIONS --cert /etc/docker/certs.d/$V1_REGISTRY/client.cert --key /etc/docker/certs.d/$V1_REGISTRY/client.key"
+  fi
+  if [ -f /etc/docker/certs.d/$V2_REGISTRY/client.cert ]
+  then
+    V2_OPTIONS="$V2_OPTIONS --cert /etc/docker/certs.d/$V2_REGISTRY/client.cert --key /etc/docker/certs.d/$V2_REGISTRY/client.key"
+  fi
+
+  # Use custom CA certificates where applicable
+  if [ -f /etc/docker/certs.d/$V1_REGISTRY/ca.crt ]
+  then
+    V1_OPTIONS="$V1_OPTIONS --cacert /etc/docker/certs.d/$V1_REGISTRY/ca.crt"
+  fi
+  if [ -f /etc/docker/certs.d/$V2_REGISTRY/ca.crt ]
+  then
+    V2_OPTIONS="$V2_OPTIONS --cacert /etc/docker/certs.d/$V2_REGISTRY/ca.crt"
   fi
 
   # verify docker daemon is accessible
@@ -304,17 +334,17 @@ query_source_images() {
     if [ -z "${V1_REPO_FILTER}" ]
     then
       # no filter pattern was defined, get all repos
-      REPO_LIST=$(curl ${INSECURE_CURL} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${V1_OPTIONS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
     else
       # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(curl ${INSECURE_CURL} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${V1_OPTIONS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
     fi
 
     # loop through all repos in v1 registry to get tags for each
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
@@ -414,7 +444,7 @@ verify_v2_ready() {
   while [ "${V2_READY}" = "false" ]
   do
     # check to see if V2_REGISTRY is returning the proper api version string
-    if $(curl ${INSECURE_CURL} -Is https://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
+    if $(curl ${V2_OPTIONS} -Is https://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
