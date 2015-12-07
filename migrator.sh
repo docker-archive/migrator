@@ -319,12 +319,6 @@ query_source_images() {
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
       do
-        # check if an image is a 'library' image without a namespace
-        if [ ${i:0:8} = "library/" ]
-        then
-          # cut off 'library/' from beginning of image
-          i="${i:8}"
-        fi
         # add image to list
         FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
       done
