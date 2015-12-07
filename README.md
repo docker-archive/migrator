@@ -51,14 +51,14 @@ The following environment variables can be set:
     * Defaults to the username used to login to Docker Hub if not provided
   * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
     * *Note*: This only filters the repositories returned from the source registry search API, not the individual tags
+  * Custom CA certificate and Client certificate support - for custom CA and/or client certificate support to your v1 and/or v2 registries, you should utilize a volume to share them into the container by adding the following to your run command:
+    * `-v /etc/docker/certs.d:/etc/docker/certs.d:ro`
   * `V1_USERNAME` - Username used for `docker login` to the v1 registry
   * `V1_PASSWORD` - Password used for `docker login` to the v1 registry
   * `V1_EMAIL` - Email used for `docker login` to the v1 registry
   * `V2_USERNAME` - Username used for `docker login` to the v2 registry
   * `V2_PASSWORD` - Password used for `docker login` to the v2 registry
   * `V2_EMAIL` - Email used for `docker login` to the v2 registry
-  * Custom CA certificate and Client certificate support - for custom CA and/or client certificate support to your v1 and/or v2 registries, you should utilize a volume to share them into the container by adding the following to your run command:
-    * `-v /etc/docker/certs.d:/etc/docker/certs.d:ro`
 
 *Note*: You must use all three variables (`V1_USERNAME`, `V1_PASSWORD`, and `V1_EMAIL` or `V2_USERNAME`, `V2_PASSWORD`, and `V2_EMAIL`) for the given automated `docker login` to function properly.  Omitting one will prompt the user for input of all three.
 
