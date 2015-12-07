@@ -81,6 +81,13 @@ verify_ready() {
     [ ${USE_INSECURE_CURL} == "true" ] && INSECURE_CURL="-k" || INSECURE_CURL=""
   fi
 
+  if [ -f /etc/docker/certs.d/$V1_REGISTRY/client.cert ]
+  then
+    CLIENT_CERTS="--cert /etc/docker/certs.d/$V1_REGISTRY/client.cert --key /etc/docker/certs.d/$V1_REGISTRY/client.key"
+  else
+    CLIENT_CERTS=""
+  fi
+
   # verify docker daemon is accessible
   if ! $(docker info > /dev/null 2>&1)
   then
@@ -304,17 +311,17 @@ query_source_images() {
     if [ -z "${V1_REPO_FILTER}" ]
     then
       # no filter pattern was defined, get all repos
-      REPO_LIST=$(curl ${INSECURE_CURL} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${INSECURE_CURL} ${CLIENT_CERTS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
     else
       # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(curl ${INSECURE_CURL} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${INSECURE_CURL} ${CLIENT_CERTS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
     fi
 
     # loop through all repos in v1 registry to get tags for each
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} ${CLIENT_CERTS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
