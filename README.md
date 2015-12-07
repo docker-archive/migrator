@@ -57,6 +57,8 @@ The following environment variables can be set:
   * `V2_USERNAME` - Username used for `docker login` to the v2 registry
   * `V2_PASSWORD` - Password used for `docker login` to the v2 registry
   * `V2_EMAIL` - Email used for `docker login` to the v2 registry
+  * Custom CA certificate and Client certificate support - for custom CA and/or client certificate support to your v1 and/or v2 registries, you should utilize a volume to share them into the container by adding the following to your run command:
+    * `-v /etc/docker/certs.d:/etc/docker/certs.d:ro`
 
 *Note*: You must use all three variables (`V1_USERNAME`, `V1_PASSWORD`, and `V1_EMAIL` or `V2_USERNAME`, `V2_PASSWORD`, and `V2_EMAIL`) for the given automated `docker login` to function properly.  Omitting one will prompt the user for input of all three.
 
