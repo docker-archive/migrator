@@ -44,6 +44,8 @@ initialize_migrator() {
 
   # set default to require curl to perform ssl certificate validation
   USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
+
+  USE_HTTP=${USE_HTTP:-false}
 }
 
 # verify requirements met for script to execute properly
@@ -89,6 +91,13 @@ verify_ready() {
     else
       INSECURE_CURL=""
     fi
+  fi
+
+  if [ "${USE_HTTP}" == "true" ]
+    then
+     PROTO="http"
+    else
+     PROTO="https"
   fi
 
   # Use client certificates where applicable
@@ -334,17 +343,17 @@ query_source_images() {
     if [ -z "${V1_REPO_FILTER}" ]
     then
       # no filter pattern was defined, get all repos
-      REPO_LIST=$(curl ${V1_OPTIONS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
     else
       # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(curl ${V1_OPTIONS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
     fi
 
     # loop through all repos in v1 registry to get tags for each
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf https://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
