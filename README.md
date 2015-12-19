@@ -47,6 +47,9 @@ The following environment variables can be set:
   * `USE_INSECURE_CURL`
     * `true` - Allows curl to perform insecure SSL connections for querying APIs
     * `false` - (_Default_) Require curl to perform secure SSL connections for querying APIs
+  * `USE_HTTP`
+    * `true` - Allows curl to connect to v1 registry running over HTTP
+    * `false` - (_Default_) Requires curl to connect to v1 registry over HTTPS
   * `DOCKER_HUB_ORG` - Docker Hub organization name to migrate images from
     * Defaults to the username used to login to Docker Hub if not provided
   * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
@@ -66,7 +69,6 @@ The following environment variables can be set:
 This migration tool assumes the following:
 
   * You have a v1 registry (or Docker Hub) and you are planning on migrating to a v2 registry
-  * Both registries are running over HTTPS; HTTP is not supported by this tool
   * The new v2 registry can either be running using a different DNS name or the same DNS name as the v1 registry - both scenarios work in this case.  If you are utilizing the same DNS name for your new v2 registry, set both `V1_REGISTRY` and `V2_REGISTRY` to the same value.
 
 It is suggested that you run this container on a Docker engine that is located near your registry as you will need to pull down every image from your v1 registry (or Docker Hub) and push them to the v2 registry to complete the migration.  This also means that you will need enough disk space on your local Docker engine to temporarily store all of the images.
