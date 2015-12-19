@@ -276,14 +276,14 @@ decode_auth() {
     DOCKER_HUB="true"
 
     # decode username and password as a pair
-    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 --decode)"
+    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 -d)"
 
     # decode individual username and password
     DOCKER_HUB_USERNAME=$(echo ${AUTH_CREDS} | awk -F ':' '{print $1}')
     DOCKER_HUB_PASSWORD=$(echo ${AUTH_CREDS} | awk -F ':' '{print $2}')
   else
     # decode username and password as a pair
-    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 --decode)"
+    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 -d)"
   fi
 }
 
