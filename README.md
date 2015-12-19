@@ -3,8 +3,7 @@ docker/migrator
 
 Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry
 
-To pull this image:
-`docker pull docker/migrator`
+https://hub.docker.com/r/docker/migrator/
 
 ## Usage
 
