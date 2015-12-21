@@ -458,10 +458,17 @@ verify_v2_ready() {
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
     else
-      # api version either not returned or not showing proper version; will continue in loop
-      echo -e "\n${ERROR} v2 registry (${V2_REGISTRY}) is not available"
-      echo -en "${NOTICE} "
-      read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry [ctrl+c to abort]\n' -n1 key
+      # check to see if error action set to abort to automatically exit when v2 not available
+      if [ "${ERROR_ACTION}" = "abort" ]
+      then
+        # abort and exit migration
+        catch_error "Failed verify v2 registry available; aborting"
+      else
+        # api version either not returned or not showing proper version; will continue in loop
+        echo -e "\n${ERROR} v2 registry (${V2_REGISTRY}) is not available"
+        echo -en "${NOTICE} "
+        read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry [ctrl+c to abort]\n' -n1 key
+      fi
     fi
   done
   # v2 registry verified as available
