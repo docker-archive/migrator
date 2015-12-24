@@ -453,7 +453,7 @@ verify_v2_ready() {
   while [ "${V2_READY}" = "false" ]
   do
     # check to see if V2_REGISTRY is returning the proper api version string
-    if $(curl ${V2_OPTIONS} -Is https://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
+    if $(curl ${V2_OPTIONS} -Is ${PROTO}://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
