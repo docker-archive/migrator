@@ -47,8 +47,14 @@ The following environment variables can be set:
     * `true` - Allows curl to perform insecure SSL connections for querying APIs
     * `false` - (_Default_) Require curl to perform secure SSL connections for querying APIs
   * `USE_HTTP`
+    * `true` - Allows curl to connect to both the v1 and v2 registries over HTTP
+    * `false` - (_Default_) Requires curl to connect to v1 and v2 registries over HTTPS
+  * `V1_USE_HTTP`
     * `true` - Allows curl to connect to v1 registry running over HTTP
     * `false` - (_Default_) Requires curl to connect to v1 registry over HTTPS
+  * `V2_USE_HTTP`
+    * `true` - Allows curl to connect to v2 registry running over HTTP
+    * `false` - (_Default_) Requires curl to connect to v2 registry over HTTPS
   * `DOCKER_HUB_ORG` - Docker Hub organization name to migrate images from
     * Defaults to the username used to login to Docker Hub if not provided
   * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))

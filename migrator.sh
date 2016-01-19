@@ -45,7 +45,18 @@ initialize_migrator() {
   # set default to require curl to perform ssl certificate validation
   USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
 
+  # set default to require https
   USE_HTTP=${USE_HTTP:-false}
+  V1_USE_HTTP=${V1_USE_HTTP:-false}
+  V2_USE_HTTP=${V2_USE_HTTP:-false}
+
+  # if USE_HTTP is true, set both v1 and v2 values to true
+  if [ "${USE_HTTP}" = "true" ]
+  then
+    V1_USE_HTTP="true"
+    V2_USE_HTTP="true"
+  fi
+
 }
 
 # verify requirements met for script to execute properly
@@ -93,11 +104,18 @@ verify_ready() {
     fi
   fi
 
-  if [ "${USE_HTTP}" == "true" ]
+  if [ "${V1_USE_HTTP}" == "true" ]
     then
-     PROTO="http"
+     V1_PROTO="http"
     else
-     PROTO="https"
+     V1_PROTO="https"
+  fi
+
+  if [ "${V2_USE_HTTP}" == "true" ]
+    then
+     V2_PROTO="http"
+    else
+     V2_PROTO="https"
   fi
 
   # Use client certificates where applicable
@@ -343,17 +361,17 @@ query_source_images() {
     if [ -z "${V1_REPO_FILTER}" ]
     then
       # no filter pattern was defined, get all repos
-      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
     else
       # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
     fi
 
     # loop through all repos in v1 registry to get tags for each
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
@@ -453,7 +471,7 @@ verify_v2_ready() {
   while [ "${V2_READY}" = "false" ]
   do
     # check to see if V2_REGISTRY is returning the proper api version string
-    if $(curl ${V2_OPTIONS} -Is ${PROTO}://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
+    if $(curl ${V2_OPTIONS} -Is ${V2_PROTO}://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
