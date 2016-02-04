@@ -94,7 +94,7 @@ verify_ready() {
     catch_error "${BOLD}USE_INSECURE_CURL${CLEAR} environment variable (${USE_INSECURE_CURL}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
   else
     # set INSECURE_CURL environment variable to appropriate value
-    if [ ${USE_INSECURE_CURL} == "true" ]
+    if [ "${USE_INSECURE_CURL}" = "true" ]
     then
       V1_OPTIONS="$V1_OPTIONS --insecure"
       V2_OPTIONS="$V2_OPTIONS --insecure"
@@ -104,14 +104,14 @@ verify_ready() {
     fi
   fi
 
-  if [ "${V1_USE_HTTP}" == "true" ]
+  if [ "${V1_USE_HTTP}" = "true" ]
     then
      V1_PROTO="http"
     else
      V1_PROTO="https"
   fi
 
-  if [ "${V2_USE_HTTP}" == "true" ]
+  if [ "${V2_USE_HTTP}" = "true" ]
     then
      V2_PROTO="http"
     else
@@ -119,21 +119,21 @@ verify_ready() {
   fi
 
   # Use client certificates where applicable
-  if [ -f /etc/docker/certs.d/$V1_REGISTRY/client.cert ]
+  if [ -f "/etc/docker/certs.d/$V1_REGISTRY/client.cert" ]
   then
     V1_OPTIONS="$V1_OPTIONS --cert /etc/docker/certs.d/$V1_REGISTRY/client.cert --key /etc/docker/certs.d/$V1_REGISTRY/client.key"
   fi
-  if [ -f /etc/docker/certs.d/$V2_REGISTRY/client.cert ]
+  if [ -f "/etc/docker/certs.d/$V2_REGISTRY/client.cert" ]
   then
     V2_OPTIONS="$V2_OPTIONS --cert /etc/docker/certs.d/$V2_REGISTRY/client.cert --key /etc/docker/certs.d/$V2_REGISTRY/client.key"
   fi
 
   # Use custom CA certificates where applicable
-  if [ -f /etc/docker/certs.d/$V1_REGISTRY/ca.crt ]
+  if [ -f "/etc/docker/certs.d/$V1_REGISTRY/ca.crt" ]
   then
     V1_OPTIONS="$V1_OPTIONS --cacert /etc/docker/certs.d/$V1_REGISTRY/ca.crt"
   fi
-  if [ -f /etc/docker/certs.d/$V2_REGISTRY/ca.crt ]
+  if [ -f "/etc/docker/certs.d/$V2_REGISTRY/ca.crt" ]
   then
     V2_OPTIONS="$V2_OPTIONS --cacert /etc/docker/certs.d/$V2_REGISTRY/ca.crt"
   fi
@@ -264,7 +264,7 @@ catch_retag_error() {
 # perform a docker login
 docker_login() {
   # leave REGISTRY empty if v1 is docker hub (docker.io); else set REGISTRY to v1
-  [ ${1} == "docker.io" ] && REGISTRY="" || REGISTRY="${1}"
+  [ "${1}" == "docker.io" ] && REGISTRY="" || REGISTRY="${1}"
   USERNAME="${2}"
   PASSWORD="${3}"
   EMAIL="${4}"
@@ -541,7 +541,7 @@ migration_complete() {
 main() {
   initialize_migrator
   verify_ready
-  # check to see if NO_LOGIN is true
+  # check to see if NO_LOGIN is not true
   if [ "${V1_NO_LOGIN}" != "true" ]; then
     docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
     decode_auth ${V1_REGISTRY}
