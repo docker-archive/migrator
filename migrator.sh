@@ -57,6 +57,8 @@ initialize_migrator() {
     V2_USE_HTTP="true"
   fi
 
+  # set default to migrate official namespaces to 'library'
+  LIBRARY_NAMESPACE=${LIBRARY_NAMESPACE:-true}
 }
 
 # verify requirements met for script to execute properly
@@ -352,6 +354,13 @@ query_source_images() {
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
       do
+        # check if an image is a 'library' image without a namespace and LIBRARY_NAMESPACE is set to false
+        if [ "${i:0:8}" = "library/" ] && [ "${LIBRARY_NAMESPACE}" = "false" ]
+        then
+          # cut off 'library/' from beginning of image
+          i="${i:8}"
+        fi
+
         # add each tag to list
         FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
       done
@@ -376,6 +385,13 @@ query_source_images() {
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
       do
+        # check if an image is a 'library' image without a namespace and LIBRARY_NAMESPACE is set to false
+        if [ "${i:0:8}" = "library/" ] && [ "${LIBRARY_NAMESPACE}" = "false" ]
+        then
+          # cut off 'library/' from beginning of image
+          i="${i:8}"
+        fi
+
         # add image to list
         FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
       done
@@ -470,8 +486,8 @@ verify_v2_ready() {
   V2_READY="false"
   while [ "${V2_READY}" = "false" ]
   do
-    # check to see if V2_REGISTRY is returning the proper api version string
-    if $(curl ${V2_OPTIONS} -Is ${V2_PROTO}://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2' > /dev/null 2>&1)
+    # check to see if V2_REGISTRY is returning the expected header (see https://docs.docker.com/registry/spec/api/#api-version-check:00e71df22262087fd8ad820708997657)
+    if $(curl ${V2_OPTIONS} -Is ${V2_PROTO}://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1)
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
