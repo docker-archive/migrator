@@ -145,6 +145,23 @@ verify_ready() {
   then
     catch_error "Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
   fi
+
+  # verify if v2 repository destination is AWS ECR
+  if [[ ${V2_REGISTRY} =~ .*ecr.*amazonaws.com$ ]]
+  then
+    if [ -f "/root/.aws/credentials" ] || ([ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ])
+    then
+      echo -en "\n${NOTICE}Please enter your destination ECR region: "
+      read AWS_REGION
+      AWS_ECR="true"
+      AWS_LOGIN=$(aws ecr get-login --region ${AWS_REGION})
+      ECR_USERNAME=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $4}')
+      ECR_PASSWORD=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $6}')
+      ECR_URL=$(echo ${AWS_LOGIN} | awk -F 'https://' '{print $2}')
+    else
+      catch_error "${BOLD}AWS${CLEAR} credentials required"
+    fi
+  fi
 }
 
 # generic error catching
@@ -568,7 +585,13 @@ main() {
   check_registry_swap_or_retag
   verify_v2_ready
   # check to see if V2_NO_LOGIN is true
-  if [ "${V2_NO_LOGIN}" != "true" ]; then
+  if ([ "${V2_NO_LOGIN}" != "true" ] && [ "${AWS_ECR}" == "true" ]); then
+    docker_login ${ECR_URL} ${ECR_USERNAME} ${ECR_PASSWORD} none
+    for i in ${REPO_LIST}
+    do
+      aws ecr create-repository --region ${AWS_REGION} --repository-name ${NAMESPACE}/${i}
+    done
+  else
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
   push_images_to_v2

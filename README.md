@@ -1,18 +1,18 @@
 docker/migrator
 =================
 
-Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry
+Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry including AWS ECS Repositories
 
-https://hub.docker.com/r/docker/migrator/
+https://hub.docker.com/r/mattnowina/migrator/
 
 ## Usage
 
 ```
-docker run -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e V1_REGISTRY=v1.registry.fqdn \
-  -e V2_REGISTRY=v2.registry.fqdn \
-  docker/migrator
+docker run --rm -it -v ~/.aws:/root/.aws:ro -v /var/run/docker.sock:/var/run/docker.sock -e V1_REGISTRY=v1.registry.fqdn -e V2_REGISTRY=v2.registry.fqdn mattnowina/migrator
+
+OR
+
+docker run -rm -it -v /var/run/docker.sock:/var/run/docker.sock -e AWS_ACCESS_KEY_ID=<key> -e AWS_SECRET_ACCESS_KEY=<secret> -e V1_REGISTRY=v1.registry.fqdn -e V2_REGISTRY=v2.registry.fqdn mattnowina/migrator
 ```
 
 ### Environment Variables
@@ -26,6 +26,8 @@ The following environment variables can be set:
 
 #### Optional
 
+  * `AWS_ACCESS_KEY` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
+  * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file. 
   * `ERROR_ACTION` - Sets the default action on error for pushes and pulls
     * `prompt` - (_Default_) Prompt for user input as to what action to take on error
     * `retry` - Retry the failed action on error (may cause infinite loop of failure)
