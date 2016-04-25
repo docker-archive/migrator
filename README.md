@@ -1,7 +1,7 @@
 docker/migrator
 =================
 
-Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry
+Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry including Amazon EC2 Container Registry (ECR) 
 
 https://hub.docker.com/r/docker/migrator/
 
@@ -9,10 +9,10 @@ https://hub.docker.com/r/docker/migrator/
 
 ```
 docker run -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e V1_REGISTRY=v1.registry.fqdn \
-  -e V2_REGISTRY=v2.registry.fqdn \
-  docker/migrator
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e V1_REGISTRY=v1.registry.fqdn \
+    -e V2_REGISTRY=v2.registry.fqdn \
+    docker/migrator
 ```
 
 ### Environment Variables
@@ -26,6 +26,8 @@ The following environment variables can be set:
 
 #### Optional
 
+  * `AWS_ACCESS_KEY` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
+  * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file. 
   * `ERROR_ACTION` - Sets the default action on error for pushes and pulls
     * `prompt` - (_Default_) Prompt for user input as to what action to take on error
     * `retry` - Retry the failed action on error (may cause infinite loop of failure)
@@ -80,6 +82,25 @@ This migration tool assumes the following:
   * The new v2 registry can either be running using a different DNS name or the same DNS name as the v1 registry - both scenarios work in this case.  If you are utilizing the same DNS name for your new v2 registry, set both `V1_REGISTRY` and `V2_REGISTRY` to the same value.
 
 It is suggested that you run this container on a Docker engine that is located near your registry as you will need to pull down every image from your v1 registry (or Docker Hub) and push them to the v2 registry to complete the migration.  This also means that you will need enough disk space on your local Docker engine to temporarily store all of the images.
+
+If you're interested in migrating to an Amazon EC2 Container Registry (ECR) you will additionally need to supply your AWS API keys to the migrator tool. This can be accomplished in one of the two following ways:
+
+```
+docker run -it \
+    -v ~/.aws:/root/.aws:ro \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e V1_REGISTRY=v1.registry.fqdn \
+    -e V2_REGISTRY=v2.registry.fqdn \
+docker/migrator
+
+docker run -it \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e AWS_ACCESS_KEY_ID=<key> \
+    -e AWS_SECRET_ACCESS_KEY=<secret> \
+    -e V1_REGISTRY=v1.registry.fqdn \
+    -e V2_REGISTRY=v2.registry.fqdn \
+docker/migrator
+```
 
 ## How Migration Works
 The migration occurs using an automated script inside of the Docker container.  Running using the above usage will work as expected.
