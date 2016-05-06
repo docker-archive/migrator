@@ -155,9 +155,10 @@ verify_ready() {
       read AWS_REGION
       AWS_ECR="true"
       AWS_LOGIN=$(aws ecr get-login --region ${AWS_REGION})
-      ECR_USERNAME=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $4}')
-      ECR_PASSWORD=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $6}')
-      ECR_URL=$(echo ${AWS_LOGIN} | awk -F 'https://' '{print $2}')
+      V2_USERNAME=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $4}')
+      V2_PASSWORD=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $6}')
+      V2_REGISTRY=$(echo ${AWS_LOGIN} | awk -F 'https://' '{print $2}')
+      V2_EMAIL="none"
     else
       catch_error "${BOLD}AWS${CLEAR} credentials required"
     fi
@@ -528,6 +529,15 @@ verify_v2_ready() {
 
 # push images to v2 registry
 push_images_to_v2() {
+  # if using ECR, create repositories before pushing
+  if [ "${AWS_ECR}" == "true" ]; then
+    for i in ${REPO_LIST}
+    do
+      # create ECR repository
+      aws ecr create-repository --region ${AWS_REGION} --repository-name ${NAMESPACE}/${i}
+    done
+  fi
+
   echo -e "\n${INFO} Pushing all images to ${V2_REGISTRY}"
   for i in ${FULL_IMAGE_LIST}
   do
@@ -585,13 +595,7 @@ main() {
   check_registry_swap_or_retag
   verify_v2_ready
   # check to see if V2_NO_LOGIN is true
-  if ([ "${V2_NO_LOGIN}" != "true" ] && [ "${AWS_ECR}" == "true" ]); then
-    docker_login ${ECR_URL} ${ECR_USERNAME} ${ECR_PASSWORD} none
-    for i in ${REPO_LIST}
-    do
-      aws ecr create-repository --region ${AWS_REGION} --repository-name ${NAMESPACE}/${i}
-    done
-  else
+  if [ "${V2_NO_LOGIN}" != "true" ]; then
     docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
   fi
   push_images_to_v2
