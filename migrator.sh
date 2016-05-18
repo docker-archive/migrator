@@ -44,6 +44,7 @@ initialize_migrator() {
 
   # set default to require curl to perform ssl certificate validation
   USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
+  VERBOSE_CURL=${VERBOSE_CURL:-false}
 
   # set default to require https
   USE_HTTP=${USE_HTTP:-false}
@@ -103,6 +104,19 @@ verify_ready() {
       INSECURE_CURL="--insecure"
     else
       INSECURE_CURL=""
+    fi
+  fi
+
+  # enable verbose logging for curl requests
+  if [ "${VERBOSE_CURL}" != "true" ] && [ "${VERBOSE_CURL}" != "false" ]
+  then
+    catch_error "${BOLD}VERBOSE_CURL${CLEAR} environment variable (${VERBOSE_CURL}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
+  else
+    # set VERBOSE_CURL environment variable to appropriate value
+    if [ "${VERBOSE_CURL}" = "true" ]
+    then
+      V1_OPTIONS="$V1_OPTIONS -v"
+      V2_OPTIONS="$V2_OPTIONS -v"
     fi
   fi
 
