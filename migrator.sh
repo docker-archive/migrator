@@ -191,6 +191,17 @@ catch_error() {
   exit 1
 }
 
+# generic error catching
+skipping() {
+  echo -e "\n${NOTICE} ${@}"
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    echo -e "${NOTICE} Could not query ${1} from Docker Hub, skipping..."
+  else
+    echo -e "${NOTICE} Could not query ${1} from v1, skipping..."
+  fi
+}
+
 # catch push/pull error
 catch_push_pull_error() {
   # set environment variables to handle arguments
@@ -381,7 +392,7 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get tags for repo
-      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name') || echo "Hey man, this didn't work: ${NAMESPACE}/${i}, ya dig?"
 
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
@@ -412,7 +423,7 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || skipping "curl => API failure" "${i}"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
