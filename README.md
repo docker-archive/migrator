@@ -27,7 +27,7 @@ The following environment variables can be set:
 #### Optional
 
   * `AWS_ACCESS_KEY` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
-  * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file. 
+  * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file.
   * `ERROR_ACTION` - Sets the default action on error for pushes and pulls
     * `prompt` - (_Default_) Prompt for user input as to what action to take on error
     * `retry` - Retry the failed action on error (may cause infinite loop of failure)
@@ -50,12 +50,15 @@ The following environment variables can be set:
     * `false` - (_Default_) Require curl to perform secure SSL connections for querying APIs
   * `USE_HTTP`
     * `true` - Allows curl to connect to both the v1 and v2 registries over HTTP
+      * *Note*: daemon must also have `--insecure-registry` option set
     * `false` - (_Default_) Requires curl to connect to v1 and v2 registries over HTTPS
   * `V1_USE_HTTP`
     * `true` - Allows curl to connect to v1 registry running over HTTP
+      * *Note*: daemon must also have `--insecure-registry` option set
     * `false` - (_Default_) Requires curl to connect to v1 registry over HTTPS
   * `V2_USE_HTTP`
     * `true` - Allows curl to connect to v2 registry running over HTTP
+      * *Note*: daemon must also have `--insecure-registry` option set
     * `false` - (_Default_) Requires curl to connect to v2 registry over HTTPS
   * `DOCKER_HUB_ORG` - Docker Hub organization name to migrate images from
     * Defaults to the username used to login to Docker Hub if not provided
