@@ -491,6 +491,16 @@ retag_image() {
   (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} ${V1_REGISTRY}/${i} > ${V2_REGISTRY}/${i}") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
 }
 
+# remove image
+remove_image() {
+  # get image name passed
+  IMAGE="${1}"
+
+  # remove image
+  echo -e "${INFO} Removing ${IMAGE}"
+  (docker rmi ${IMAGE} && echo -e "${OK} Successfully removed ${IMAGE}\n") || echo -e "${OK} Failed to remove ${IMAGE}; continuing\n"
+}
+
 # pull all images to local system
 pull_images_from_source() {
   echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
@@ -609,13 +619,12 @@ migrate_in_increments() {
     # delete images locally to free disk space
     for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
     do
-      docker rmi ${V1_REGISTRY}/${i} || true
-      docker rmi ${V2_REGISTRY}/${i} || true
+      remove_image "${V1_REGISTRY}/${i}"
+      remove_image "${V2_REGISTRY}/${i}"
     done
 
     # increment COUNT_START by migration increment value
     COUNT_START=$[$COUNT_START+$MIGRATION_INCREMENT]
-    echo
   done
 }
 
@@ -630,14 +639,14 @@ cleanup_local_engine() {
     for i in ${FULL_IMAGE_LIST}
     do
       # remove docker image/tags; allow failures here (in case image is actually in use)
-      docker rmi ${V1_REGISTRY}/${i} || true
+      remove_image "${V1_REGISTRY}/${i}"
     done
   else
     for i in ${FULL_IMAGE_LIST}
     do
       # remove docker image/tags; allow failures here (in case image is actually in use)
-      docker rmi ${V1_REGISTRY}/${i} || true
-      docker rmi ${V2_REGISTRY}/${i} || true
+      remove_image "${V1_REGISTRY}/${i}"
+      remove_image "${V2_REGISTRY}/${i}"
     done
   fi
   echo -e "${OK} Successfully cleaned up images from local Docker engine"
@@ -647,9 +656,9 @@ cleanup_local_engine() {
 migration_complete() {
   if [ "${DOCKER_HUB}" = "true" ]
   then
-    echo -e "\n${OK} Migration from Docker Hub to v2 complete!"
+    echo -e "${OK} Migration from Docker Hub to v2 complete!"
   else
-    echo -e "\n${OK} Migration from v1 to v2 complete!"
+    echo -e "${OK} Migration from v1 to v2 complete!"
   fi
 }
 
