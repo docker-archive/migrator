@@ -59,6 +59,9 @@ initialize_migrator() {
 
   # set default to migrate official namespaces to 'library'
   LIBRARY_NAMESPACE=${LIBRARY_NAMESPACE:-true}
+
+  # set number of images to migrate at once; null means do not migrate incrementally
+  MIGRATION_INCREMENT=${MIGRATION_INCREMENT:-}
 }
 
 # verify requirements met for script to execute properly
@@ -161,6 +164,25 @@ verify_ready() {
       V2_EMAIL="none"
     else
       catch_error "${BOLD}AWS${CLEAR} credentials required"
+    fi
+  fi
+
+  # check to see if MIGRATION_INCREMENT has been set
+  if [ -n "${MIGRATION_INCREMENT}" ]
+  then
+    # check to see if MIGRATION_INCREMENT is a positive integer
+    if [ ${MIGRATION_INCREMENT} -eq ${MIGRATION_INCREMENT} 2> /dev/null ] && [ ${MIGRATION_INCREMENT} -gt 0 2> /dev/null ]
+    then
+      # check to see if v1 and v2 are the same
+      if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
+      then
+        catch_error "${BOLD}MIGRATION_INCREMENT${CLEAR} can not be set if source and destination registries are using the same FQDN"
+      else
+        # set environment variable to indicate migration will be done incrementally
+        MIGRATE_IN_INCREMENTS=true
+      fi
+    else
+      catch_error "${BOLD}MIGRATION_INCREMENT${CLEAR} environment variable must be a positive integer"
     fi
   fi
 }
@@ -546,6 +568,57 @@ push_images_to_v2() {
   echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY}"
 }
 
+# count number of items in a list
+count_list() {
+  echo $#;
+}
+
+# perform migration incrementally
+migrate_in_increments() {
+  # initialize variables for increment loops
+  COUNT_START="0"
+  COUNT_END="${MIGRATION_INCREMENT}"
+
+  # count number of items in FULL_IMAGE_LIST
+  LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+
+  # convert list to array
+  FULL_IMAGE_ARR=($FULL_IMAGE_LIST)
+
+  # migrate incrementally while looping through entire list
+  while [ ${COUNT_START} -lt ${LEN_FULL_IMAGE_LIST} ]
+  do
+    # pull images from v1
+    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    do
+      push_pull_image "pull" "${V1_REGISTRY}/${i}"
+    done
+
+    # retag images from v1 for v2
+    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    do
+      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
+    done
+
+    # push images to v2
+    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    do
+      push_pull_image "push" "${V2_REGISTRY}/${i}"
+    done
+
+    # delete images locally to free disk space
+    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    do
+      docker rmi ${V1_REGISTRY}/${i} || true
+      docker rmi ${V2_REGISTRY}/${i} || true
+    done
+
+    # increment COUNT_START by migration increment value
+    COUNT_START=$[$COUNT_START+$MIGRATION_INCREMENT]
+    echo
+  done
+}
+
 # cleanup images from local docker engine
 cleanup_local_engine() {
   echo -e "\n${INFO} Cleaning up images from local Docker engine"
@@ -591,15 +664,26 @@ main() {
   fi
   query_source_images
   show_source_image_list
-  pull_images_from_source
-  check_registry_swap_or_retag
-  verify_v2_ready
-  # check to see if V2_NO_LOGIN is true
-  if [ "${V2_NO_LOGIN}" != "true" ]; then
-    docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+  # check to see if MIGRATE_IN_INCREMENTS is true
+  if [ "${MIGRATE_IN_INCREMENTS}" = "true" ]; then
+    # check to see if V2_NO_LOGIN is true
+    if [ "${V2_NO_LOGIN}" != "true" ]; then
+      docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+    fi
+    # perform migration incrementally
+    migrate_in_increments
+  else
+    # perform migration pulling image images at once
+    pull_images_from_source
+    check_registry_swap_or_retag
+    verify_v2_ready
+    # check to see if V2_NO_LOGIN is true
+    if [ "${V2_NO_LOGIN}" != "true" ]; then
+      docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+    fi
+    push_images_to_v2
+    cleanup_local_engine
   fi
-  push_images_to_v2
-  cleanup_local_engine
   migration_complete
 }
 
