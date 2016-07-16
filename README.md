@@ -33,6 +33,10 @@ The following environment variables can be set:
     * `retry` - Retry the failed action on error (may cause infinite loop of failure)
     * `skip` - Log the error and continue migration on error
     * `abort` - Abort the migration on error
+  * `MIGRATION_INCREMENT` - Breaks up migration in chunks of `n` images
+    * Defaults to migrating all images at once if not specified
+    * Must be a positive integer
+    * Only works if source and destination are not the same FQDN
   * `USER_PROMPT` - Sets the default action for user prompts (non-error)
     * `true` - (_Default_) Prompts user for input/validation
     * `false` - Skips user prompt and automatically proceeds
