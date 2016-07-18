@@ -466,17 +466,27 @@ push_pull_image() {
   ACTION="${1}"
   IMAGE="${2}"
 
+  # check to see if values were provided for migration status
+  if [ -n "${3}" ] && [ -n "${4}" ]
+  then
+    # set migration status variable accordingly
+    MIG_STATUS="(${3} of ${4})"
+  else
+    # set migration status to null
+    MIG_STATUS=""
+  fi
+
   # check the action and act accordingly
   case ${ACTION} in
     push)
       # push image
-      echo -e "${INFO} Pushing ${IMAGE}"
-      (docker push ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "push" "${IMAGE}"
+      echo -e "${INFO} Pushing ${IMAGE} ${MIG_STATUS}"
+      (docker push ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "push" "${IMAGE}" "${3}" "${4}"
       ;;
     pull)
       # pull image
-      echo -e "${INFO} Pulling ${IMAGE}"
-      (docker pull ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "pull" "${IMAGE}"
+      echo -e "${INFO} Pulling ${IMAGE} ${MIG_STATUS}"
+      (docker pull ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "pull" "${IMAGE}" "${3}" "${4}"
       ;;
   esac
 }
@@ -487,8 +497,19 @@ retag_image() {
   SOURCE_IMAGE="${1}"
   DESTINATION_IMAGE="${2}"
 
+  # check to see if values were provided for migration status
+  if [ -n "${3}" ] && [ -n "${4}" ]
+  then
+    # set migration status variable accordingly
+    MIG_STATUS="(${3} of ${4})"
+  else
+    # set migration status to null
+    MIG_STATUS=""
+  fi
+
   # retag image
-  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} ${V1_REGISTRY}/${i} > ${V2_REGISTRY}/${i}") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
+  echo -e "${INFO} Retagging ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i} ${MIG_STATUS}"
+  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} Successfully retagged ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i}\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
 }
 
 # remove image
@@ -503,10 +524,15 @@ remove_image() {
 
 # pull all images to local system
 pull_images_from_source() {
+  # initialize variable for counting
+  COUNT_PULL=1
+  LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+
   echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
   for i in ${FULL_IMAGE_LIST}
   do
-    push_pull_image "pull" "${V1_REGISTRY}/${i}"
+    push_pull_image "pull" "${V1_REGISTRY}/${i}" ${COUNT_PULL} ${LEN_FULL_IMAGE_LIST}
+    COUNT_PULL=$[$COUNT_PULL+1]
   done
   echo -e "${OK} Successully pulled all images from ${V1_REGISTRY} to your local system"
 }
@@ -522,10 +548,15 @@ check_registry_swap_or_retag() {
     read -rsp $'Make the necessary changes to switch your v1 and v2 registries and then press any key to continue\n' -n1 key
   else
     # re-tag images; different DNS name used for v2 registry
+    # initialize variable for counting
+    COUNT_RETAG=1
+    LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+
     echo -e "\n${INFO} Retagging all images from '${V1_REGISTRY}' to '${V2_REGISTRY}'"
     for i in ${FULL_IMAGE_LIST}
     do
-      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
+      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}" ${COUNT_RETAG} ${LEN_FULL_IMAGE_LIST}
+      COUNT_RETAG=$[$COUNT_RETAG+1]
     done
     echo -e "${OK} Successfully retagged all images"
   fi
@@ -570,10 +601,15 @@ push_images_to_v2() {
     done
   fi
 
+  # initialize variable for counting
+  COUNT_PUSH=1
+  LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+
   echo -e "\n${INFO} Pushing all images to ${V2_REGISTRY}"
   for i in ${FULL_IMAGE_LIST}
   do
-    push_pull_image "push" "${V2_REGISTRY}/${i}"
+    push_pull_image "push" "${V2_REGISTRY}/${i}" ${COUNT_PUSH} ${LEN_FULL_IMAGE_LIST}
+    COUNT_PUSH=$[$COUNT_PUSH+1]
   done
   echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY}"
 }
@@ -588,6 +624,10 @@ migrate_in_increments() {
   # initialize variables for increment loops
   COUNT_START="0"
   COUNT_END="${MIGRATION_INCREMENT}"
+  COUNT_PULL=1
+  COUNT_RETAG=1
+  COUNT_PUSH=1
+  COUNT_DELETE=1
 
   # count number of items in FULL_IMAGE_LIST
   LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
@@ -601,19 +641,22 @@ migrate_in_increments() {
     # pull images from v1
     for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
     do
-      push_pull_image "pull" "${V1_REGISTRY}/${i}"
+      push_pull_image "pull" "${V1_REGISTRY}/${i}" ${COUNT_PULL} ${LEN_FULL_IMAGE_LIST}
+      COUNT_PULL=$[$COUNT_PULL+1]
     done
 
     # retag images from v1 for v2
     for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
     do
-      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}"
+      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}" ${COUNT_RETAG} ${LEN_FULL_IMAGE_LIST}
+      COUNT_RETAG=$[$COUNT_RETAG+1]
     done
 
     # push images to v2
     for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
     do
-      push_pull_image "push" "${V2_REGISTRY}/${i}"
+      push_pull_image "push" "${V2_REGISTRY}/${i}" ${COUNT_PUSH} ${LEN_FULL_IMAGE_LIST}
+      COUNT_PUSH=$[$COUNT_PUSH+1]
     done
 
     # delete images locally to free disk space
