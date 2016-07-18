@@ -1,4 +1,4 @@
-FROM alpine:3.3
+FROM alpine:3.4
 
 RUN apk --no-cache add bash curl jq wget groff less python py-pip &&\
   pip install awscli &&\
