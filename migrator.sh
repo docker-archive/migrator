@@ -44,6 +44,7 @@ initialize_migrator() {
 
   # set default to require curl to perform ssl certificate validation
   USE_INSECURE_CURL=${USE_INSECURE_CURL:-false}
+  VERBOSE_CURL=${VERBOSE_CURL:-false}
 
   # set default to require https
   USE_HTTP=${USE_HTTP:-false}
@@ -106,6 +107,19 @@ verify_ready() {
       INSECURE_CURL="--insecure"
     else
       INSECURE_CURL=""
+    fi
+  fi
+
+  # enable verbose logging for curl requests
+  if [ "${VERBOSE_CURL}" != "true" ] && [ "${VERBOSE_CURL}" != "false" ]
+  then
+    catch_error "${BOLD}VERBOSE_CURL${CLEAR} environment variable (${VERBOSE_CURL}) invalid; must be either ${BOLD}true${CLEAR} or ${BOLD}false${CLEAR}"
+  else
+    # set VERBOSE_CURL environment variable to appropriate value
+    if [ "${VERBOSE_CURL}" = "true" ]
+    then
+      V1_OPTIONS="$V1_OPTIONS -v"
+      V2_OPTIONS="$V2_OPTIONS -v"
     fi
   fi
 
@@ -197,6 +211,17 @@ catch_error() {
     echo -e "${ERROR} Migration from v1 to v2 failed!"
   fi
   exit 1
+}
+
+# generic error catching
+skipping() {
+  echo -e "\n${NOTICE} ${@}"
+  if [ "${DOCKER_HUB}" = "true" ]
+  then
+    echo -e "${NOTICE} Could not query ${1} from Docker Hub, skipping..."
+  else
+    echo -e "${NOTICE} Could not query ${1} from v1, skipping..."
+  fi
 }
 
 # catch push/pull error
@@ -389,7 +414,7 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get tags for repo
-      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name') || echo "Hey man, this didn't work: ${NAMESPACE}/${i}, ya dig?"
 
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
@@ -420,7 +445,7 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
+      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || skipping "curl => API failure" "${i}"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
