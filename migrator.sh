@@ -375,21 +375,63 @@ query_source_images() {
       catch_error "The Docker Hub user ${BOLD}${DOCKER_HUB_USERNAME}${CLEAR} does not have permission to access ${BOLD}${NAMESPACE}${CLEAR}; aborting"
     fi
 
-    # check to see if a filter pattern was provided
+    # check to see if a filter pattern was provided, create a list of all repositories for the given namespace
     if [ -z "${V1_REPO_FILTER}" ]
     then
-      # no filter pattern was defined, get all repos
-      REPO_LIST=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/?page_size=100000 | jq -r '.results|.[]|.name') || catch_error "curl => API failure"
+      # set page URL to start with
+      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/?page=1&page_size=25"
+
+      # no filter pattern was defined, get all repos, looping through each page
+      while [ "${PAGE_URL}" != "null" ]
+      do
+        # get a list of repos on this page
+        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
+
+        # figure out next page URL
+        PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
+
+        # Add repos to the list
+        REPO_LIST="${REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name')"
+      done
     else
-      # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/?page_size=100000 | jq -r '.results|.[]|.name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+      # set page URL to start with
+      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/?page=1&page_size=25"
+
+      # no filter pattern was defined, get all repos, looping through each page
+      while [ "${PAGE_URL}" != "null" ]
+      do
+        # get a list of repos on this page
+        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
+
+        # figure out next page URL
+        PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
+
+        # Add repos to the list, use grep to match repos w/regex capabilites
+        REPO_LIST="${REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name' | grep ${V1_REPO_FILTER} || true)"
+      done
     fi
 
     # build a list of all images & tags
     for i in ${REPO_LIST}
     do
-      # get tags for repo
-      IMAGE_TAGS=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page_size=100000 | jq -r '.results|.[]|.name') || catch_error "curl => API failure"
+      # reset the IMAGE_TAGS variable
+      IMAGE_TAGS=""
+
+      # set page URL to start with
+      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page=1&page_size=250"
+
+      # loop through each page of tags
+      while [ "${PAGE_URL}" != "null" ]
+      do
+        # get a list of tags on this page
+        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
+
+        # figure out next page URL
+        PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
+
+        # Add tags to the list
+        IMAGE_TAGS="${IMAGE_TAGS} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name')"
+      done
 
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
