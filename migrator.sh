@@ -442,9 +442,20 @@ query_source_images() {
           # cut off 'library/' from beginning of image
           i="${i:8}"
         fi
-
-        # add each tag to list
-        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+          # check if tag filter was provided
+          if [ -z "${V1_TAG_FILTER}" ]
+          # no tag filter, add image and tag to list
+          then
+              # add each tag to list
+              FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+          else
+						# if tag filter, check for a match
+            if [ "$j" == "${V1_TAG_FILTER}" ]
+            then
+                # add each tag to list
+                FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+          	fi
+        	fi
       done
     done
   else
