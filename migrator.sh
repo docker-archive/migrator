@@ -154,11 +154,11 @@ verify_ready() {
   then
     if [ -f "/root/.aws/credentials" ] || ([ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ])
     then
-
+      # AWS REGION must be specified if using ECR
       if [ -z "${AWS_REGION}" ]
-  		then
-  			catch_error "\$AWS_REGION required"
-  		fi
+      then
+  	catch_error "\$AWS_REGION required"
+      fi
 
       AWS_ECR="true"
       AWS_LOGIN=$(aws ecr get-login --region ${AWS_REGION})
