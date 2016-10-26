@@ -62,6 +62,9 @@ initialize_migrator() {
 
   # set number of images to migrate at once; null means do not migrate incrementally
   MIGRATION_INCREMENT=${MIGRATION_INCREMENT:-}
+
+  # by default not migrate all tags. Set this to true if you want to skip tags that already exist at target
+  SKIP_EXISTING_TAGS=${SKIP_EXISTING_TAGS:-false}
 }
 
 # verify requirements met for script to execute properly
@@ -188,6 +191,11 @@ verify_ready() {
     else
       catch_error "${BOLD}MIGRATION_INCREMENT${CLEAR} environment variable must be a positive integer"
     fi
+  fi
+
+  if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ] && [ ${SKIP_EXISTING_TAGS} = "true" ]; then
+    echo -n "${NOTICE} Partial migration cannot be used when source and destination are using the same FQDN, disabling."
+    SKIP_EXISTING_TAGS="false"
   fi
 }
 
@@ -351,6 +359,54 @@ decode_auth() {
   fi
 }
 
+##
+# Get all the tags for a name at the target repository.
+#
+# If MIGRATE_ALL is set to true, the list will not be queried but always be empty
+#
+# Usage: query_tags_to_skip <image_name>
+# Return: json-list of all tags in the form ["latest", "dev", "123"]. If the request fails, the list will be empty
+##
+query_tags_to_skip() {
+  IMAGE="${1}"
+
+  if [ "${SKIP_EXISTING_TAGS}" = "false" ]; then
+    echo "[]"
+    return 0
+  fi
+
+  TAGS_URL="${V2_PROTO}://${V2_REGISTRY}/v2/${IMAGE}/tags/list"
+
+  TAGS_RETRIEVAL_POSSIBLE=$(curl ${INSECURE_CURL} -s -o /dev/null -w "%{http_code}" ${TAGS_URL} --user ${V2_USERNAME}:${V2_PASSWORD})
+  if [ "${TAGS_RETRIEVAL_POSSIBLE}" = "200" ]; then
+    echo $(curl ${INSECURE_CURL} -s -S ${TAGS_URL} --user ${V2_USERNAME}:${V2_PASSWORD} | jq -cM '[.tags[]]')
+  else
+    echo "[]"
+  fi
+}
+
+##
+# Check if a json array contains a needle
+#
+# Usage: json_array_contains <haystack> <needle>
+# Return: "true" or "false"
+#
+# Usage example: json_array_contains '["a", "b", "c"]' "c"
+#                => "true"
+##
+json_array_contains() {
+  HAYSTACK="${1}"
+  NEEDLE="${2}"
+
+  SEARCH_RESULTS=$(echo ${HAYSTACK} | jq '.[] == "'${NEEDLE}'"')
+
+  if [[ ${SEARCH_RESULTS} =~ .*true.* ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
 # query the source registry for a list of all images
 query_source_images() {
   echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
@@ -424,6 +480,9 @@ query_source_images() {
       # set page URL to start with
       PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page=1&page_size=250"
 
+      # retrieve a list of tags at the target repository
+      TAGS_AT_TARGET=$(query_tags_to_skip ${NAMESPACE}/${i})
+
       # loop through each page of tags
       while [ "${PAGE_URL}" != "null" ]
       do
@@ -450,14 +509,24 @@ query_source_images() {
           if [ -z "${V1_TAG_FILTER}" ]
           # no tag filter, add image and tag to list
           then
-            # add each tag to list
-            FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+            # only append this tag to the list, if the tag wasn't pushed before
+            if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
+              echo -e "${INFO} Skipping ${NAMESPACE}/${i}:${j}"
+            else
+              # add each tag to list
+              FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+            fi
           else
 	    # if tag filter, check for a match
             if [ "$j" == "${V1_TAG_FILTER}" ]
             then
-              # add each tag to list
-              FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+              # only append this tag to the list, if the tag wasn't pushed before
+              if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
+                echo -e "${INFO} Skipping ${NAMESPACE}/${i}:${j}"
+              else
+                # add each tag to list
+                FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+              fi
             fi
           fi
       done
@@ -479,6 +548,9 @@ query_source_images() {
       # get list of tags for image i
       IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
 
+      # retrieve a list of tags at the target repository
+      TAGS_AT_TARGET=$(query_tags_to_skip ${i})
+
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
       do
@@ -489,8 +561,13 @@ query_source_images() {
           i="${i:8}"
         fi
 
-        # add image to list
-        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
+        # only append this tag to the list, if the tag wasn't pushed before
+        if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
+          echo -e "${INFO} Skipping $i:$j"
+        else
+          # add image to list
+          FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
+        fi
       done
     done
   fi

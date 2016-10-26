@@ -73,6 +73,9 @@ The following environment variables can be set:
   * `LIBRARY_NAMESPACE` - Sets option to migrate official namespaces (images where there is no namespace provided) to the `library/` namespace (Note: must be set to `true` for DTR 1.4 or greater)
     * `true` - (_Default_) Adds `library` namespace to image names
     * `false` - Keeps images as they are without a namespace
+  * `SKIP_EXISTING_TAGS` - Option to skip tags that exist at the target repository
+    * `true` - Do not migrate tags that exist at the target repository
+    * `false` - (_Default_) Do not skip any tags 
   * Custom CA certificate and Client certificate support - for custom CA and/or client certificate support to your v1 and/or v2 registries, you should utilize a volume to share them into the container by adding the following to your run command:
     * `-v /etc/docker/certs.d:/etc/docker/certs.d:ro`
   * `V1_USERNAME` - Username used for `docker login` to the v1 registry
