@@ -154,8 +154,12 @@ verify_ready() {
   then
     if [ -f "/root/.aws/credentials" ] || ([ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ])
     then
-      echo -en "\n${NOTICE}Please enter your destination ECR region: "
-      read AWS_REGION
+      # AWS REGION must be specified if using ECR
+      if [ -z "${AWS_REGION}" ]
+      then
+  	catch_error "\$AWS_REGION required"
+      fi
+
       AWS_ECR="true"
       AWS_LOGIN=$(aws ecr get-login --region ${AWS_REGION})
       V2_USERNAME=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $4}')
@@ -442,9 +446,20 @@ query_source_images() {
           # cut off 'library/' from beginning of image
           i="${i:8}"
         fi
-
-        # add each tag to list
-        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+          # check if tag filter was provided
+          if [ -z "${V1_TAG_FILTER}" ]
+          # no tag filter, add image and tag to list
+          then
+            # add each tag to list
+            FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+          else
+	    # if tag filter, check for a match
+            if [ "$j" == "${V1_TAG_FILTER}" ]
+            then
+              # add each tag to list
+              FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+            fi
+          fi
       done
     done
   else

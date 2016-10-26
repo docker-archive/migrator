@@ -27,6 +27,7 @@ The following environment variables can be set:
 #### Optional
 
   * `AWS_ACCESS_KEY` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
+  * `AWS_REGION` - AWS Region, must be specified if using ECR 
   * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file.
   * `ERROR_ACTION` - Sets the default action on error for pushes and pulls
     * `prompt` - (_Default_) Prompt for user input as to what action to take on error
@@ -68,6 +69,7 @@ The following environment variables can be set:
     * Defaults to the username used to login to Docker Hub if not provided
   * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
     * *Note*: This only filters the repositories returned from the source registry search API, not the individual tags
+  * `V1_TAG_FILTER` - Search filter to limit the scope of the tags to migrate (Plain text matching).
   * `LIBRARY_NAMESPACE` - Sets option to migrate official namespaces (images where there is no namespace provided) to the `library/` namespace (Note: must be set to `true` for DTR 1.4 or greater)
     * `true` - (_Default_) Adds `library` namespace to image names
     * `false` - Keeps images as they are without a namespace
