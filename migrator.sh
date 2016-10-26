@@ -370,14 +370,15 @@ query_source_images() {
     # get token to be able to talk to Docker Hub
     TOKEN=$(curl ${INSECURE_CURL} -sf -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token) || catch_error "curl => API failure"
 
-    # get list of namespaces accessible by user
-    NAMESPACES=$(curl -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/namespaces/ | jq -r '.namespaces|.[]') || catch_error "curl => API failure"
+# TODO - the check against namespaces is broken because it only returns orgs in which you're an admin; see https://github.com/docker/migrator/issues/93
+#    # get list of namespaces accessible by user
+#    NAMESPACES=$(curl -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/namespaces/ | jq -r '.namespaces|.[]') || catch_error "curl => API failure"
 
-    # verify NAMESPACE is in NAMESPACES to ensure proper access; abort if incorrect access
-    if ! echo ${NAMESPACES} | grep -w ${NAMESPACE} > /dev/null 2>&1
-    then
-      catch_error "The Docker Hub user ${BOLD}${DOCKER_HUB_USERNAME}${CLEAR} does not have permission to access ${BOLD}${NAMESPACE}${CLEAR}; aborting"
-    fi
+#    # verify NAMESPACE is in NAMESPACES to ensure proper access; abort if incorrect access
+#    if ! echo ${NAMESPACES} | grep -w ${NAMESPACE} > /dev/null 2>&1
+#    then
+#      catch_error "The Docker Hub user ${BOLD}${DOCKER_HUB_USERNAME}${CLEAR} does not have permission to access ${BOLD}${NAMESPACE}${CLEAR}; aborting"
+#    fi
 
     # check to see if a filter pattern was provided, create a list of all repositories for the given namespace
     if [ -z "${V1_REPO_FILTER}" ]
