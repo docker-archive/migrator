@@ -361,6 +361,7 @@ decode_auth() {
 
 ##
 # Get all the tags for a name at the target repository.
+# Supports forced pagination on the tags list (as done by ECR and probably others)
 #
 # If MIGRATE_ALL is set to true, the list will not be queried but always be empty
 #
@@ -376,13 +377,66 @@ query_tags_to_skip() {
   fi
 
   TAGS_URL="${V2_PROTO}://${V2_REGISTRY}/v2/${IMAGE}/tags/list"
+  TAGS="[]"
 
-  TAGS_RETRIEVAL_POSSIBLE=$(curl ${INSECURE_CURL} -s -o /dev/null -w "%{http_code}" ${TAGS_URL} --user ${V2_USERNAME}:${V2_PASSWORD})
-  if [ "${TAGS_RETRIEVAL_POSSIBLE}" = "200" ]; then
-    echo $(curl ${INSECURE_CURL} -s -S ${TAGS_URL} --user ${V2_USERNAME}:${V2_PASSWORD} | jq -cM '[.tags[]]')
-  else
-    echo "[]"
-  fi
+  while [ -n "${TAGS_URL}" ]; do
+
+    TAGS_RESPONSE=$(curl ${INSECURE_CURL} -i -s ${TAGS_URL} --user ${V2_USERNAME}:${V2_PASSWORD})
+
+    FIRST=true
+    HEADER=false
+    BODY=false
+
+    NEXT_PAGE=""
+
+    # read the `curl -i` output which looks like:
+    # <Status Line>\r
+    # <Headers> = <Header>[...<Header>]
+    # -- separating newline --
+    # <Body>
+    while IFS= read -r line; do
+      if [ ${FIRST} = "true" ]; then
+        RESPONSE_STATUS=${line}
+        FIRST=false
+        HEADER=true
+        continue
+      fi
+
+      if [ ${HEADER} = "true" ]; then
+        if [ "$line" = $'\r' ]; then
+          HEADER=false
+          BODY=true
+          continue
+        fi
+
+        if [[ "$line" =~ $'Link' ]]; then
+           NEXT_PAGE="$line"
+        fi
+        RESPONSE_HEADER="$RESPONSE_HEADER\n$line"
+      fi
+
+      if [ "${BODY}" = "true" ]; then
+        RESPONSE_BODY="$line"
+      fi
+
+    done < <(echo "${TAGS_RESPONSE}")
+
+    if ! [[ "${RESPONSE_STATUS}" =~ "HTTP/"(1(.[10])?|2)" 200".* ]]; then
+      # retrieving existing tags failed
+      break
+    fi
+
+    # bash substring mechanism requires us to save this into an intermediate field
+    NEXT_PAGE_LINK_IN_CHEVRONS=$(echo ${NEXT_PAGE} | grep -o '<.*>')
+    NEXT_PAGE_LINK=${NEXT_PAGE_LINK_IN_CHEVRONS:1:-1}
+    THIS_PAGE_TAGS=$(echo ${RESPONSE_BODY} | jq -cM '[.tags[]]')
+    TAGS=$(jq -scM '.[0] as $o1 | .[1] as $o2 | ($o1 + $o2)' < <(echo ${TAGS}; echo ${THIS_PAGE_TAGS}))
+
+    TAGS_URL=${NEXT_PAGE_LINK}
+  done
+
+  echo ${TAGS}
+
 }
 
 ##
