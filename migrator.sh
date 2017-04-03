@@ -461,6 +461,41 @@ json_array_contains() {
   fi
 }
 
+strip_library() {
+  # check if an image ($1) is a 'library' image without a namespace and LIBRARY_NAMESPACE is set to false
+  if [ "${1:0:8}" = "library/" ] && [ "${LIBRARY_NAMESPACE}" = "false" ]; then
+    # cut off 'library/' from beginning of image
+    echo "${1:8}"
+  else
+    echo $1
+  fi
+}
+
+# Filter tags if a specific tag was given, or they exist in the destination.
+filter_tags() {
+  # no tag filter
+  if [ -z "${V1_TAG_FILTER}" ]; then
+    # only append this tag to the list if the tag wasn't pushed before
+    if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
+      echo -e "${INFO} Skipping ${NAMESPACE}/${i}:${j}"
+    else
+      # add each tag to list
+      FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+    fi
+  else
+    # if tag filter, check for a match
+    if [ "$j" == "${V1_TAG_FILTER}" ]; then
+      # only append this tag to the list if the tag wasn't pushed before
+      if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
+        echo -e "${INFO} Skipping ${NAMESPACE}/${i}:${j}"
+      else
+        # add each tag to list
+        FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
+      fi
+    fi
+  fi
+}
+
 # query the source registry for a list of all images
 query_source_images() {
   echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
@@ -511,7 +546,7 @@ query_source_images() {
       # set page URL to start with
       PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/?page=1&page_size=25"
 
-      # no filter pattern was defined, get all repos, looping through each page
+      # get all repos, filtering by V1_REPO_FILTER
       while [ "${PAGE_URL}" != "null" ]
       do
         # get a list of repos on this page
@@ -521,7 +556,7 @@ query_source_images() {
         PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
 
         # Add repos to the list, use grep to match repos w/regex capabilites
-        REPO_LIST="${REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name' | grep ${V1_REPO_FILTER} || true)"
+        REPO_LIST="${REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name' | grep "${V1_REPO_FILTER}" || true)"
       done
     fi
 
@@ -553,36 +588,10 @@ query_source_images() {
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
       do
-        # check if an image is a 'library' image without a namespace and LIBRARY_NAMESPACE is set to false
-        if [ "${i:0:8}" = "library/" ] && [ "${LIBRARY_NAMESPACE}" = "false" ]
-        then
-          # cut off 'library/' from beginning of image
-          i="${i:8}"
-        fi
-          # check if tag filter was provided
-          if [ -z "${V1_TAG_FILTER}" ]
-          # no tag filter, add image and tag to list
-          then
-            # only append this tag to the list, if the tag wasn't pushed before
-            if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
-              echo -e "${INFO} Skipping ${NAMESPACE}/${i}:${j}"
-            else
-              # add each tag to list
-              FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
-            fi
-          else
-	    # if tag filter, check for a match
-            if [ "$j" == "${V1_TAG_FILTER}" ]
-            then
-              # only append this tag to the list, if the tag wasn't pushed before
-              if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
-                echo -e "${INFO} Skipping ${NAMESPACE}/${i}:${j}"
-              else
-                # add each tag to list
-                FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${NAMESPACE}/${i}:${j}"
-              fi
-            fi
-          fi
+        i=$(strip_library $i)
+        # Initialize in case filter_tags has nothing to append
+        FULL_IMAGE_LIST=""
+        filter_tags
       done
     done
   else
@@ -608,20 +617,9 @@ query_source_images() {
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
       do
-        # check if an image is a 'library' image without a namespace and LIBRARY_NAMESPACE is set to false
-        if [ "${i:0:8}" = "library/" ] && [ "${LIBRARY_NAMESPACE}" = "false" ]
-        then
-          # cut off 'library/' from beginning of image
-          i="${i:8}"
-        fi
-
-        # only append this tag to the list, if the tag wasn't pushed before
-        if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
-          echo -e "${INFO} Skipping $i:$j"
-        else
-          # add image to list
-          FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${i}:${j}"
-        fi
+        i=$(strip_library $i)
+        FULL_IMAGE_LIST=""
+        filter_tags
       done
     done
   fi
