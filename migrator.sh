@@ -488,10 +488,10 @@ filter_tags() {
     else
       # if tag filter, check for a match
       if [ "$j" == "${V1_TAG_FILTER}" ]; then
-        echo -e "${INFO} Skipping ${FULL_IMAGE_NAME}"
-      else
-        # didn't match, so add the tag
+        # Match, so add the tag
         FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${FULL_IMAGE_NAME}"
+      else
+        echo -e "${INFO} Skipping ${FULL_IMAGE_NAME}"
       fi
     fi
   fi
