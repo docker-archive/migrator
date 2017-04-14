@@ -519,39 +519,34 @@ query_source_images() {
       fi
     fi
 
+    # set page URL to start with
+    PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/?page=1&page_size=25"
+
+    # no filter pattern was defined, get all repos, looping through each page
+    while [ "${PAGE_URL}" != "null" ]
+    do
+      # get a list of repos on this page
+      PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
+
+      # figure out next page URL
+      PAGE_URL="$(echo $PAGE_DATA | jq -r .next)"
+
+      # Add repos to the list
+      FULL_REPO_LIST="${FULL_REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name')"
+    done
+
     # check to see if a filter pattern was provided, create a list of all repositories for the given namespace
     if [ -z "${V1_REPO_FILTER}" ]
     then
-      # set page URL to start with
-      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/?page=1&page_size=25"
-
-      # no filter pattern was defined, get all repos, looping through each page
-      while [ "${PAGE_URL}" != "null" ]
-      do
-        # get a list of repos on this page
-        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
-
-        # figure out next page URL
-        PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
-
-        # Add repos to the list
-        REPO_LIST="${REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name')"
-      done
+      # no filter provided; do no filtering
+      REPO_LIST="${FULL_REPO_LIST}"
     else
-      # set page URL to start with
-      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/?page=1&page_size=25"
-
-      # get all repos, filtering by V1_REPO_FILTER
-      while [ "${PAGE_URL}" != "null" ]
+      # filter provided; build list of what we will and will not migrate
+      REPO_LIST="$(echo "$FULL_REPO_LIST" | grep ${V1_REPO_FILTER} || true)"
+      FILTERED_REPO_LIST="$(echo "$FULL_REPO_LIST" | grep -v ${V1_REPO_FILTER} || true)"
+      for i in ${FILTERED_REPO_LIST}
       do
-        # get a list of repos on this page
-        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
-
-        # figure out next page URL
-        PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
-
-        # Add repos to the list, use grep to match repos w/regex capabilites
-        REPO_LIST="${REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name' | grep ${V1_REPO_FILTER} || true)"
+        echo -e "${INFO} Skipping ${NAMESPACE}/${i} (all tags)"
       done
     fi
 
@@ -607,7 +602,6 @@ query_source_images() {
       # retrieve a list of tags at the target repository
       TAGS_AT_TARGET=$(query_tags_to_skip ${i})
 
-
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
       do
@@ -621,12 +615,18 @@ query_source_images() {
 
 # show list of images from docker hub or the v1 registry
 show_source_image_list() {
+  # check to see if a filter pattern was provided, create a list of all repositories for the given namespace
   echo -e "\n${INFO} Full list of images from ${V1_REGISTRY} to be migrated:"
 
   # output list with v1 registry name prefix added
   for i in ${FULL_IMAGE_LIST}
   do
-    echo ${V1_REGISTRY}/${i}
+    if [ "${V1_REGISTRY}" = "docker.io" ]
+    then
+      echo ${i}
+    else
+      echo ${V1_REGISTRY}/${i}
+    fi
   done
   echo -e "${OK} End full list of images from ${V1_REGISTRY}"
 
