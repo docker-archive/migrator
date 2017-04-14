@@ -473,7 +473,7 @@ filter_tags() {
 
   # only append this tag to the list if the tag wasn't pushed before
   if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
-    echo -e "${INFO} Skipping ${FULL_IMAGE_NAME}"
+    echo -e "${INFO} Skipping ${V1_REGISTRY}/${FULL_IMAGE_NAME}"
   else
     # no tag filter
     if [ -z "${V1_TAG_FILTER}" ]; then
@@ -485,12 +485,7 @@ filter_tags() {
         # Match, so add the tag
         FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${FULL_IMAGE_NAME}"
       else
-        if [ "${V1_REGISTRY}" = "docker.io" ]
-        then
-          echo -e "${INFO} Skipping ${FULL_IMAGE_NAME}"
-        else
-          echo -e "${INFO} Skipping ${V1_REGISTRY}/${FULL_IMAGE_NAME}"
-        fi
+        echo -e "${INFO} Skipping ${V1_REGISTRY}/${FULL_IMAGE_NAME}"
       fi
     fi
   fi
@@ -552,7 +547,7 @@ query_source_images() {
 
       for i in ${FILTERED_REPO_LIST}
       do
-        echo -e "${INFO} Skipping ${NAMESPACE}/${i} (all tags)"
+        echo -e "${INFO} Skipping ${V1_REGISTRY}/${NAMESPACE}/${i} (all tags)"
       done
     fi
 
@@ -637,12 +632,7 @@ show_source_image_list() {
   # output list with v1 registry name prefix added
   for i in ${FULL_IMAGE_LIST}
   do
-    if [ "${V1_REGISTRY}" = "docker.io" ]
-    then
-      echo ${i}
-    else
-      echo ${V1_REGISTRY}/${i}
-    fi
+    echo ${V1_REGISTRY}/${i}
   done
   echo -e "${OK} End full list of images from ${V1_REGISTRY}"
 
