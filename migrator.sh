@@ -485,7 +485,12 @@ filter_tags() {
         # Match, so add the tag
         FULL_IMAGE_LIST="${FULL_IMAGE_LIST} ${FULL_IMAGE_NAME}"
       else
-        echo -e "${INFO} Skipping ${FULL_IMAGE_NAME}"
+        if [ "${V1_REGISTRY}" = "docker.io" ]
+        then
+          echo -e "${INFO} Skipping ${FULL_IMAGE_NAME}"
+        else
+          echo -e "${INFO} Skipping ${V1_REGISTRY}/${FULL_IMAGE_NAME}"
+        fi
       fi
     fi
   fi
@@ -544,6 +549,7 @@ query_source_images() {
       # filter provided; build list of what we will and will not migrate
       REPO_LIST="$(echo "$FULL_REPO_LIST" | grep ${V1_REPO_FILTER} || true)"
       FILTERED_REPO_LIST="$(echo "$FULL_REPO_LIST" | grep -v ${V1_REPO_FILTER} || true)"
+
       for i in ${FILTERED_REPO_LIST}
       do
         echo -e "${INFO} Skipping ${NAMESPACE}/${i} (all tags)"
@@ -583,14 +589,24 @@ query_source_images() {
       done
     done
   else
+    # get a list of all repos
+    FULL_REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+
     # check to see if a filter pattern was provided
     if [ -z "${V1_REPO_FILTER}" ]
     then
       # no filter pattern was defined, get all repos
-      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+      REPO_LIST="${FULL_REPO_LIST}"
     else
       # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name' | grep ${V1_REPO_FILTER} || true) || catch_error "curl => API failure"
+      REPO_LIST=$(echo "${FULL_REPO_LIST}" | grep ${V1_REPO_FILTER} || true)
+      # get list of filtered repos
+      FILTERED_REPO_LIST="$(echo "${FULL_REPO_LIST}" | grep -v ${V1_REPO_FILTER} || true)"
+
+      for i in ${FILTERED_REPO_LIST}
+      do
+        echo -e "${INFO} Skipping ${V1_REGISTRY}/${NAMESPACE}/${i} (all tags)"
+      done
     fi
 
     # loop through all repos in v1 registry to get tags for each
