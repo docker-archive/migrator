@@ -416,7 +416,7 @@ query_tags_to_skip() {
       fi
 
       if [ "${BODY}" = "true" ]; then
-        RESPONSE_BODY="$line"
+        RESPONSE_BODY+="$line"
       fi
 
     done < <(echo "${TAGS_RESPONSE}")
