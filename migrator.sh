@@ -452,13 +452,7 @@ json_array_contains() {
   HAYSTACK="${1}"
   NEEDLE="${2}"
 
-  SEARCH_RESULTS=$(echo ${HAYSTACK} | jq '.[] == "'${NEEDLE}'"')
-
-  if [[ ${SEARCH_RESULTS} =~ .*true.* ]]; then
-    echo "true"
-  else
-    echo "false"
-  fi
+  echo ${HAYSTACK} | jq --arg needle ${NEEDLE} 'any(.[]; . == $needle)'
 }
 
 strip_library() {
