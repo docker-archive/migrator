@@ -11,7 +11,7 @@
 [Org]
 	[Org."Core maintainers"]
 		people = [
-			"mbentley",
+			"mbentley"
 		]
 
 [people]
