@@ -556,13 +556,13 @@ query_source_images() {
       IMAGE_TAGS=""
 
       # set page URL to start with
-      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page=1&page_size=${NUM_TAGS}"
+      PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page=1&page_size=250"
 
       # retrieve a list of tags at the target repository
       TAGS_AT_TARGET=$(query_tags_to_skip ${NAMESPACE}/${i})
 
       # loop through each page of tags
-      while [ "${PAGE_URL}" != "null" ] && [ "$(count_list ${IMAGE_TAGS})" -le "${NUM_TAGS}" ]
+      while [ "${PAGE_URL}" != "null" ]
       do
         # get a list of tags on this page
         PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
