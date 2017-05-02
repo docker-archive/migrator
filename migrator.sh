@@ -334,7 +334,9 @@ docker_login() {
     # keep retrying docker login until successful
     while [ "$LOGIN_SUCCESS" = "false" ]
     do
-      docker login ${REGISTRY} && LOGIN_SUCCESS="true"
+      read -p "Username: " USERNAME
+      read -s -p "Password: " PASSWORD
+      docker login --username="${USERNAME}" --password="${PASSWORD}" ${REGISTRY} && LOGIN_SUCCESS="true"
     done
   fi
 }
@@ -347,12 +349,8 @@ decode_auth() {
     # set DOCKER_HUB to true for future use
     DOCKER_HUB="true"
 
-    # decode username and password as a pair
-    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 -d)"
-
-    # decode individual username and password
-    DOCKER_HUB_USERNAME=$(echo ${AUTH_CREDS} | awk -F ':' '{print $1}')
-    DOCKER_HUB_PASSWORD=$(echo ${AUTH_CREDS} | awk -F ':' '{print $2}')
+    DOCKER_HUB_USERNAME=${USERNAME}
+    DOCKER_HUB_PASSWORD=${PASSWORD}
   else
     # decode username and password as a pair
     AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 -d)"
@@ -693,8 +691,8 @@ retag_image() {
   fi
 
   # retag image
-  echo -e "${INFO} Retagging ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i} ${MIG_STATUS}"
-  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} Successfully retagged ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i}\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
+  echo -e "${INFO} Retagging ${SOURCE_IMAGE} to ${DESTINATION_IMAGE} ${MIG_STATUS}"
+  (docker tag ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} Successfully retagged ${SOURCE_IMAGE} to ${DESTINATION_IMAGE}\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
 }
 
 # remove image
