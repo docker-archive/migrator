@@ -334,7 +334,9 @@ docker_login() {
     # keep retrying docker login until successful
     while [ "$LOGIN_SUCCESS" = "false" ]
     do
-      docker login ${REGISTRY} && LOGIN_SUCCESS="true"
+      read -p "Username: " USERNAME
+      read -s -p "Password: " PASSWORD
+      docker login --username="${USERNAME}" --password="${PASSWORD}" ${REGISTRY} && LOGIN_SUCCESS="true"
     done
   fi
 }
@@ -347,12 +349,8 @@ decode_auth() {
     # set DOCKER_HUB to true for future use
     DOCKER_HUB="true"
 
-    # decode username and password as a pair
-    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 -d)"
-
-    # decode individual username and password
-    DOCKER_HUB_USERNAME=$(echo ${AUTH_CREDS} | awk -F ':' '{print $1}')
-    DOCKER_HUB_PASSWORD=$(echo ${AUTH_CREDS} | awk -F ':' '{print $2}')
+    DOCKER_HUB_USERNAME=${USERNAME}
+    DOCKER_HUB_PASSWORD=${PASSWORD}
   else
     # decode username and password as a pair
     AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 -d)"
