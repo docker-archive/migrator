@@ -693,8 +693,8 @@ retag_image() {
   fi
 
   # retag image
-  echo -e "${INFO} Retagging ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i} ${MIG_STATUS}"
-  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} Successfully retagged ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i}\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
+  echo -e "${INFO} Retagging ${SOURCE_IMAGE} to ${DESTINATION_IMAGE} ${MIG_STATUS}"
+  (docker tag ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} Successfully retagged ${SOURCE_IMAGE} to ${DESTINATION_IMAGE}\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
 }
 
 # remove image
