@@ -376,18 +376,23 @@ query_tags_to_skip() {
     return 0
   fi
 
+  INNER_AUTH_TRIES=0
+
+  AUTHORIZATION_HEADER="Authorization: Basic $(echo ${V2_USERNAME}:${V2_PASSWORD} | base64)"
+
   TAGS_URL="${V2_PROTO}://${V2_REGISTRY}/v2/${IMAGE}/tags/list"
   TAGS="[]"
 
   while [ -n "${TAGS_URL}" ]; do
 
-    TAGS_RESPONSE=$(curl ${INSECURE_CURL} -i -s ${TAGS_URL} --user ${V2_USERNAME}:${V2_PASSWORD})
+    TAGS_RESPONSE=$(curl ${INSECURE_CURL} -i -s "${TAGS_URL}" --header "${AUTHORIZATION_HEADER}")
 
     FIRST=true
     HEADER=false
     BODY=false
 
     NEXT_PAGE=""
+    NEED_AUTH=""
 
     # read the `curl -i` output which looks like:
     # <Status Line>\r
@@ -409,8 +414,14 @@ query_tags_to_skip() {
           continue
         fi
 
+        # match regular expressions case insensitive, headers can have any casing (RFC 2616 Sec 4.2)
+        shopt -s nocasematch
+
         if [[ "$line" =~ $'Link' ]]; then
            NEXT_PAGE="$line"
+        fi
+        if [[ "$line" =~ $'Www-Authenticate' ]]; then
+           NEED_AUTH="$line"
         fi
         RESPONSE_HEADER="$RESPONSE_HEADER\n$line"
       fi
@@ -420,6 +431,35 @@ query_tags_to_skip() {
       fi
 
     done < <(echo "${TAGS_RESPONSE}")
+
+    if [[ -n ${NEED_AUTH} ]]; then
+
+      if [ ${INNER_AUTH_TRIES} == 1 ]; then
+        # prevent infinite loop when authentication cannot succeed
+        break
+      fi
+
+      REALM_MATCHER="REALM=\"([^\"]*)\""
+      SERVICE_MATCHER="SERVICE=\"([^\"]*)\""
+      SCOPE_MATCHER="SCOPE=\"([^\"]*)\""
+      if [[ ${NEED_AUTH} =~ $REALM_MATCHER ]]; then
+        REALM=${BASH_REMATCH[1]}
+      fi
+      if [[ ${NEED_AUTH} =~ $SERVICE_MATCHER ]]; then
+        SERVICE=${BASH_REMATCH[1]}
+      fi
+      if [[ ${NEED_AUTH} =~ $SCOPE_MATCHER ]]; then
+        SCOPE=${BASH_REMATCH[1]}
+      fi
+
+      AUTH_URL="${REALM}?service=${SERVICE}&scope=${SCOPE}"
+      AUTH_RESPONSE=$(curl ${INSECURE_CURL} -s "${AUTH_URL}" --user "${V2_USERNAME}:${V2_PASSWORD}")
+      AUTH_TOKEN=$(echo ${AUTH_RESPONSE} | jq .token | tr -d '"')
+      AUTHORIZATION_HEADER="Authorization: Bearer ${AUTH_TOKEN}"
+      INNER_AUTH_TRIES=1
+
+      continue
+    fi
 
     if ! [[ "${RESPONSE_STATUS}" =~ "HTTP/"(1(.[10])?|2)" 200".* ]]; then
       # retrieving existing tags failed
