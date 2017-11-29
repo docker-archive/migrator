@@ -160,7 +160,7 @@ verify_ready() {
       # AWS REGION must be specified if using ECR
       if [ -z "${AWS_REGION}" ]
       then
-  	catch_error "\$AWS_REGION required"
+  	    catch_error "\$AWS_REGION required"
       fi
 
       AWS_ECR="true"
@@ -630,6 +630,7 @@ query_source_images() {
       FULL_REPO_LIST=${V1_FULL_REPO_LIST}
     else
       # get a list of all repos
+      echo -e "${INFO} Grabbing list of repositories from ${V1_REGISTRY}"
       FULL_REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
     fi
     # check to see if a filter pattern was provided
@@ -653,6 +654,7 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
+      echo -e "${INFO} Grabbing tags for ${V1_REGISTRY}/${NAMESPACE}/${i}"
       IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
 
       # retrieve a list of tags at the target repository
