@@ -376,6 +376,13 @@ query_tags_to_skip() {
     return 0
   fi
 
+  if [ "${AWS_ECR}" == "true" ]; then
+    echo -e "${INFO} Grabbing tags from AWS ECR"
+    TAGS=$(aws ecr list-images --repository-name ${NAMESPACE} --region ${AWS_REGION} | jq -cM '[.imageIds[].imageTag]')
+    echo ${TAGS}
+    return 0
+  fi
+
   INNER_AUTH_TRIES=0
 
   AUTHORIZATION_HEADER="Authorization: Basic $(echo ${V2_USERNAME}:${V2_PASSWORD} | base64)"
