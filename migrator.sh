@@ -659,6 +659,7 @@ query_source_images() {
 
       # retrieve a list of tags at the target repository
       TAGS_AT_TARGET=$(query_tags_to_skip ${i})
+      echo -e "${INFO} Found the following existing tags at ${V2_REGISTRY}/${NAMESPACE}/${i}: ${TAGS_AT_TARGET}"
 
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
