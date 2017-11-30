@@ -377,7 +377,6 @@ query_tags_to_skip() {
   fi
 
   if [ "${AWS_ECR}" == "true" ]; then
-    echo -e "${INFO} Grabbing tags from AWS ECR for ${IMAGE}"
     TAGS=$(aws ecr list-images --repository-name ${IMAGE} --region ${AWS_REGION} | jq -cM '[.imageIds[].imageTag]')
     echo ${TAGS}
     return 0
@@ -519,7 +518,7 @@ filter_tags() {
   FULL_IMAGE_NAME="${NAMESPACE}${NAMESPACE:+/}${i}:${j}"
 
   # only append this tag to the list if the tag wasn't pushed before
-  if [ $(json_array_contains ${TAGS_AT_TARGET} ${j}) = "true" ]; then
+  if [ "$(json_array_contains ${TAGS_AT_TARGET} ${j})" = "true" ]; then
     echo -e "${INFO} Skipping ${V1_REGISTRY}/${FULL_IMAGE_NAME}"
   else
     # no tag filter
