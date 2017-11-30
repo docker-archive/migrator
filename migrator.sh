@@ -377,8 +377,8 @@ query_tags_to_skip() {
   fi
 
   if [ "${AWS_ECR}" == "true" ]; then
-    echo -e "${INFO} Grabbing tags from AWS ECR"
-    TAGS=$(aws ecr list-images --repository-name ${NAMESPACE} --region ${AWS_REGION} | jq -cM '[.imageIds[].imageTag]')
+    echo -e "${INFO} Grabbing tags from AWS ECR for ${IMAGE}"
+    TAGS=$(aws ecr list-images --repository-name ${IMAGE} --region ${AWS_REGION} | jq -cM '[.imageIds[].imageTag]')
     echo ${TAGS}
     return 0
   fi
