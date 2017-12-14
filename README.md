@@ -68,7 +68,7 @@ The following environment variables can be set:
   * `DOCKER_HUB_ORG` - Docker Hub organization name to migrate images from
     * Defaults to the username used to login to Docker Hub if not provided
   * `V1_FULL_REPO_LIST`
-    * If provided, this allows the user to provide a whitespace separated list of repos for migration. This allows skipping the _search step in case it is disabled
+    * If provided, this allows the user to provide a whitespace separated list of repos for migration. This allows skipping the V1 call to `_search` (some setups might have search disabled)
   * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
     * *Note*: This only filters the repositories returned from the source registry search API, not the individual tags
   * `V1_TAG_FILTER` - Search filter to limit the scope of the tags to migrate (Plain text matching).
