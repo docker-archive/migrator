@@ -1,7 +1,7 @@
 docker/migrator
 =================
 
-Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry including Amazon EC2 Container Registry (ECR) 
+Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry including Amazon EC2 Container Registry (ECR)
 
 https://hub.docker.com/r/docker/migrator/
 
@@ -27,7 +27,7 @@ The following environment variables can be set:
 #### Optional
 
   * `AWS_ACCESS_KEY` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
-  * `AWS_REGION` - AWS Region, must be specified if using ECR 
+  * `AWS_REGION` - AWS Region, must be specified if using ECR
   * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file.
   * `ERROR_ACTION` - Sets the default action on error for pushes and pulls
     * `prompt` - (_Default_) Prompt for user input as to what action to take on error
@@ -67,6 +67,8 @@ The following environment variables can be set:
     * `false` - (_Default_) Requires curl to connect to v2 registry over HTTPS
   * `DOCKER_HUB_ORG` - Docker Hub organization name to migrate images from
     * Defaults to the username used to login to Docker Hub if not provided
+  * `V1_FULL_REPO_LIST`
+    * If provided, this allows the user to provide a whitespace separated list of repos for migration. This allows skipping the V1 call to `_search` (some setups might have search disabled)
   * `V1_REPO_FILTER` - Search filter to limit the scope of the repositories to migrate (uses [grep basic regular expression interpretation](http://www.gnu.org/software/grep/manual/html_node/Basic-vs-Extended.html))
     * *Note*: This only filters the repositories returned from the source registry search API, not the individual tags
   * `V1_TAG_FILTER` - Search filter to limit the scope of the tags to migrate (Plain text matching).
@@ -75,7 +77,7 @@ The following environment variables can be set:
     * `false` - Keeps images as they are without a namespace
   * `SKIP_EXISTING_TAGS` - Option to skip tags that exist at the target repository
     * `true` - Do not migrate tags that exist at the target repository
-    * `false` - (_Default_) Do not skip any tags 
+    * `false` - (_Default_) Do not skip any tags
   * Custom CA certificate and Client certificate support - for custom CA and/or client certificate support to your v1 and/or v2 registries, you should utilize a volume to share them into the container by adding the following to your run command:
     * `-v /etc/docker/certs.d:/etc/docker/certs.d:ro`
   * `V1_USERNAME` - Username used for `docker login` to the v1 registry
