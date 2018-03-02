@@ -660,22 +660,20 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      if [[ $i != *"%2F"* ]]; then
-          echo -e "${INFO} Grabbing tags for ${V1_REGISTRY}/${NAMESPACE}/${i}"
-          #echo -e "curl -v ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags"
-          IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure reading tags"
-    
-          # retrieve a list of tags at the target repository
-          TAGS_AT_TARGET=$(query_tags_to_skip ${i})
-          echo -e "${INFO} Found the following existing tags at ${V2_REGISTRY}/${NAMESPACE}/${i}: ${TAGS_AT_TARGET}"
-    
-          # loop through tags to create list of full image names w/tags
-          for j in ${IMAGE_TAGS}
-          do
-            i=$(strip_library $i)
-            filter_tags
-          done
-      fi
+      echo -e "${INFO} Grabbing tags for ${V1_REGISTRY}/${NAMESPACE}/${i}"
+      #echo -e "curl -v ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags"
+      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure reading tags"
+  
+      # retrieve a list of tags at the target repository
+      TAGS_AT_TARGET=$(query_tags_to_skip ${i})
+      echo -e "${INFO} Found the following existing tags at ${V2_REGISTRY}/${NAMESPACE}/${i}: ${TAGS_AT_TARGET}"
+  
+      # loop through tags to create list of full image names w/tags
+      for j in ${IMAGE_TAGS}
+      do
+        i=$(strip_library $i)
+        filter_tags
+      done
     done
   fi
   echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
