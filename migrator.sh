@@ -544,7 +544,7 @@ query_source_images() {
   if [ "${DOCKER_HUB}" = "true" ]
   then
     # get token to be able to talk to Docker Hub
-    TOKEN=$(curl ${INSECURE_CURL} -sf -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token) || catch_error "curl => API failure"
+    TOKEN=$(curl ${INSECURE_CURL} -sf -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token) || catch_error "curl => API failure getting token"
 
     # check to see if DOCKER_HUB_ORG has been specified
     if [ -z "${DOCKER_HUB_ORG}" ]
@@ -556,7 +556,7 @@ query_source_images() {
       NAMESPACE="${DOCKER_HUB_ORG}"
 
       # get list of namespaces accessible by user
-      NAMESPACES=$(curl -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/user/orgs/ | jq -r '.results|.[].orgname') || catch_error "curl => API failure"
+      NAMESPACES=$(curl -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/user/orgs/ | jq -r '.results|.[].orgname') || catch_error "curl => API failure gettng namespaces"
 
       # verify NAMESPACE is in NAMESPACES to ensure proper access; abort if incorrect access
       if ! echo ${NAMESPACES} | grep -w ${NAMESPACE} > /dev/null 2>&1
@@ -572,7 +572,7 @@ query_source_images() {
     while [ "${PAGE_URL}" != "null" ]
     do
       # get a list of repos on this page
-      PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
+      PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure getting repo list"
 
       # figure out next page URL
       PAGE_URL="$(echo $PAGE_DATA | jq -r .next)"
@@ -613,7 +613,7 @@ query_source_images() {
       while [ "${PAGE_URL}" != "null" ]
       do
         # get a list of tags on this page
-        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure"
+        PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure getting tag list"
 
         # figure out next page URL
         PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
@@ -635,7 +635,7 @@ query_source_images() {
     then
       # get a list of all repos
       echo -e "${INFO} Grabbing list of repositories from ${V1_REGISTRY}"
-      FULL_REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure"
+      FULL_REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure getting repo list"
     else
       FULL_REPO_LIST=${V1_FULL_REPO_LIST}
     fi
@@ -660,19 +660,22 @@ query_source_images() {
     for i in ${REPO_LIST}
     do
       # get list of tags for image i
-      echo -e "${INFO} Grabbing tags for ${V1_REGISTRY}/${NAMESPACE}/${i}"
-      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure"
-
-      # retrieve a list of tags at the target repository
-      TAGS_AT_TARGET=$(query_tags_to_skip ${i})
-      echo -e "${INFO} Found the following existing tags at ${V2_REGISTRY}/${NAMESPACE}/${i}: ${TAGS_AT_TARGET}"
-
-      # loop through tags to create list of full image names w/tags
-      for j in ${IMAGE_TAGS}
-      do
-        i=$(strip_library $i)
-        filter_tags
-      done
+      if [[ $i != *"%2F"* ]]; then
+          echo -e "${INFO} Grabbing tags for ${V1_REGISTRY}/${NAMESPACE}/${i}"
+          #echo -e "curl -v ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags"
+          IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure reading tags"
+    
+          # retrieve a list of tags at the target repository
+          TAGS_AT_TARGET=$(query_tags_to_skip ${i})
+          echo -e "${INFO} Found the following existing tags at ${V2_REGISTRY}/${NAMESPACE}/${i}: ${TAGS_AT_TARGET}"
+    
+          # loop through tags to create list of full image names w/tags
+          for j in ${IMAGE_TAGS}
+          do
+            i=$(strip_library $i)
+            filter_tags
+          done
+      fi
     done
   fi
   echo -e "${OK} Successfully retrieved list of Docker images from ${V1_REGISTRY}"
