@@ -808,7 +808,7 @@ verify_v2_ready() {
   while [ "${V2_READY}" = "false" ]
   do
     # check to see if V2_REGISTRY is returning the expected header (see https://docs.docker.com/registry/spec/api/#api-version-check:00e71df22262087fd8ad820708997657)
-    if $(curl ${V2_OPTIONS} -Is ${V2_PROTO}://${V2_REGISTRY}/v2/ | grep ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1)
+    if $(curl ${V2_OPTIONS} -Is ${V2_PROTO}://${V2_REGISTRY}/v2/ | grep -i ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1)
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
