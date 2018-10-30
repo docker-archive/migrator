@@ -1,7 +1,7 @@
 docker/migrator
 =================
 
-Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry including Amazon EC2 Container Registry (ECR)
+Tool to migrate Docker images from Docker Hub or v1 registry to a v2 registry including Amazon Elastic Container Registry (ECR)
 
 https://hub.docker.com/r/docker/migrator/
 
@@ -97,7 +97,7 @@ This migration tool assumes the following:
 
 It is suggested that you run this container on a Docker engine that is located near your registry as you will need to pull down every image from your v1 registry (or Docker Hub) and push them to the v2 registry to complete the migration.  This also means that you will need enough disk space on your local Docker engine to temporarily store all of the images.  If you have limited disk space, it is suggested that you use the `MIGRATION_INCREMENT` option to migrate `n` number of images at a time.
 
-If you're interested in migrating to an Amazon EC2 Container Registry (ECR) you will additionally need to supply your AWS API keys to the migrator tool. This can be accomplished in one of the two following ways:
+If you're interested in migrating to an Amazon Elastic Container Registry (ECR) you will additionally need to supply your AWS API keys to the migrator tool. This can be accomplished in one of the two following ways:
 
 ```
 docker run -it \
