@@ -70,6 +70,7 @@ initialize_migrator() {
 # verify requirements met for script to execute properly
 verify_ready() {
   # verify v1 registry variable has been passed
+  # shellcheck disable=SC2153
   if [ -z "${V1_REGISTRY}" ]
   then
     catch_error "${BOLD}V1_REGISTRY${CLEAR} environment variable required"
@@ -147,7 +148,7 @@ verify_ready() {
   fi
 
   # verify docker daemon is accessible
-  if ! $(docker info > /dev/null 2>&1)
+  if ! docker info > /dev/null 2>&1
   then
     catch_error "Docker daemon not accessible. Is the Docker socket shared into the container as a volume?"
   fi
@@ -155,7 +156,7 @@ verify_ready() {
   # verify if v2 repository destination is AWS ECR
   if [[ ${V2_REGISTRY} =~ .*ecr.*amazonaws.com$ ]]
   then
-    if [ -f "/root/.aws/credentials" ] || ([ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ])
+    if [ -f "/root/.aws/credentials" ] || { [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; }
     then
       # AWS REGION must be specified if using ECR
       if [ -z "${AWS_REGION}" ]
@@ -164,10 +165,10 @@ verify_ready() {
       fi
 
       AWS_ECR="true"
-      AWS_LOGIN=$(aws ecr get-login --region ${AWS_REGION})
-      V2_USERNAME=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $4}')
-      V2_PASSWORD=$(echo ${AWS_LOGIN} | awk -F ' ' '{print $6}')
-      V2_REGISTRY=$(echo ${AWS_LOGIN} | awk -F 'https://' '{print $2}')
+      AWS_LOGIN=$(aws ecr get-login --region "${AWS_REGION}")
+      V2_USERNAME=$(echo "${AWS_LOGIN}" | awk -F ' ' '{print $4}')
+      V2_PASSWORD=$(echo "${AWS_LOGIN}" | awk -F ' ' '{print $6}')
+      V2_REGISTRY=$(echo "${AWS_LOGIN}" | awk -F 'https://' '{print $2}')
       V2_EMAIL="none"
     else
       catch_error "${BOLD}AWS${CLEAR} credentials required"
@@ -178,7 +179,7 @@ verify_ready() {
   if [ -n "${MIGRATION_INCREMENT}" ]
   then
     # check to see if MIGRATION_INCREMENT is a positive integer
-    if [ ${MIGRATION_INCREMENT} -eq ${MIGRATION_INCREMENT} 2> /dev/null ] && [ ${MIGRATION_INCREMENT} -gt 0 2> /dev/null ]
+    if [ "${MIGRATION_INCREMENT}" -eq "${MIGRATION_INCREMENT}" ] && [ "${MIGRATION_INCREMENT}" -gt 0 ]
     then
       # check to see if v1 and v2 are the same
       if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
@@ -193,7 +194,7 @@ verify_ready() {
     fi
   fi
 
-  if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ] && [ ${SKIP_EXISTING_TAGS} = "true" ]; then
+  if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ] && [ "${SKIP_EXISTING_TAGS}" = "true" ]; then
     echo -n "${NOTICE} Partial migration cannot be used when source and destination are using the same FQDN, disabling."
     SKIP_EXISTING_TAGS="false"
   fi
@@ -201,7 +202,7 @@ verify_ready() {
 
 # generic error catching
 catch_error() {
-  echo -e "\n${ERROR} ${@}"
+  echo -e "\\n${ERROR} ${*}"
   if [ "${DOCKER_HUB}" = "true" ]
   then
     echo -e "${ERROR} Migration from Docker Hub to v2 failed!"
@@ -223,7 +224,7 @@ catch_push_pull_error() {
     prompt)
       # prompt user for course of action
       echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}"
-      echo -en "\n${NOTICE} "
+      echo -en "\\n${NOTICE} "
       read -rp $"Retry, skip, or abort? {r|s|a} " -n1 RESPONSE; echo
 
       # act based on user response
@@ -242,19 +243,19 @@ catch_push_pull_error() {
           ;;
         *)
           # invalid user response; re-run function with prompt
-          echo -e "\n${ERROR} Invalid response"
+          echo -e "\\n${ERROR} Invalid response"
           catch_push_pull_error "${ACTION}" "${IMAGE}" "prompt"
           ;;
       esac
       ;;
     retry)
       # run push or pull again
-      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; retrying\n"
+      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; retrying\\n"
       push_pull_image "${ACTION}" "${IMAGE}"
       ;;
     skip)
       # skip push or pull and proceeed
-      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; skipping\n"
+      echo -e "${ERROR} Failed to ${ACTION} ${IMAGE}; skipping\\n"
       ;;
     abort)
       # abort and exit migration
@@ -275,7 +276,7 @@ catch_retag_error() {
     prompt)
       # prompt user for course of action
       echo -e "${ERROR} Failed to retag ${SOURCE_IMAGE} > ${DESTINATION_IMAGE}"
-      echo -en "\n${NOTICE} "
+      echo -en "\\n${NOTICE} "
       read -rp $"Retry, skip, or abort? {r|s|a} " -n1 RESPONSE; echo
 
       # act based on user response
@@ -294,19 +295,19 @@ catch_retag_error() {
           ;;
         *)
           # invalid user response; re-run function with prompt
-          echo -e "\n${ERROR} Invalid response"
+          echo -e "\\n${ERROR} Invalid response"
           catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "prompt"
           ;;
       esac
       ;;
     retry)
       # run retag again
-      echo -e "${ERROR} Failed to retag ${IMAGE}; retrying\n"
+      echo -e "${ERROR} Failed to retag ${IMAGE}; retrying\\n"
       retag_image "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}"
       ;;
     skip)
       # skip retag and proceed
-      echo -e "${ERROR} Failed to retag ${IMAGE}; skipping\n"
+      echo -e "${ERROR} Failed to retag ${IMAGE}; skipping\\n"
       ;;
     abort)
       # abort and exit migration
@@ -326,7 +327,7 @@ docker_login() {
   if [ -n "${USERNAME}" ] && [ -n "${PASSWORD}" ] && [ -n "${EMAIL}" ]
   then
     # docker login with credentials provided
-    docker login --username="${USERNAME}" --password="${PASSWORD}" --email="${EMAIL}" ${REGISTRY} || catch_error "Failed to login using provided credentials"
+    docker login --username="${USERNAME}" --password="${PASSWORD}" --email="${EMAIL}" "${REGISTRY}" || catch_error "Failed to login using provided credentials"
   else
     # prompt for credentials for docker login
     echo -e "${NOTICE} Please login to ${REGISTRY}:"
@@ -334,7 +335,7 @@ docker_login() {
     # keep retrying docker login until successful
     while [ "$LOGIN_SUCCESS" = "false" ]
     do
-      docker login ${REGISTRY} && LOGIN_SUCCESS="true"
+      docker login "${REGISTRY}" && LOGIN_SUCCESS="true"
     done
   fi
 }
@@ -348,14 +349,14 @@ decode_auth() {
     DOCKER_HUB="true"
 
     # decode username and password as a pair
-    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."https://index.docker.io/v1/".auth' | base64 -d)"
+    AUTH_CREDS="$(jq -r '."https://index.docker.io/v1/".auth' < ~/.dockercfg | base64 -d)"
 
     # decode individual username and password
-    DOCKER_HUB_USERNAME=$(echo ${AUTH_CREDS} | awk -F ':' '{print $1}')
-    DOCKER_HUB_PASSWORD=$(echo ${AUTH_CREDS} | awk -F ':' '{print $2}')
+    DOCKER_HUB_USERNAME=$(echo "${AUTH_CREDS}" | awk -F ':' '{print $1}')
+    DOCKER_HUB_PASSWORD=$(echo "${AUTH_CREDS}" | awk -F ':' '{print $2}')
   else
     # decode username and password as a pair
-    AUTH_CREDS="$(cat ~/.dockercfg | jq -r '."'${1}'".auth' | base64 -d)"
+    AUTH_CREDS="$(jq -r '."'"${1}"'".auth' < ~/.dockercfg | base64 -d)"
   fi
 }
 
@@ -377,14 +378,14 @@ query_tags_to_skip() {
   fi
 
   if [ "${AWS_ECR}" == "true" ]; then
-    TAGS=$(aws ecr list-images --repository-name ${IMAGE} --region ${AWS_REGION} | jq -cM '[.imageIds[].imageTag]')
-    echo ${TAGS}
+    TAGS=$(aws ecr list-images --repository-name "${IMAGE}" --region "${AWS_REGION}" | jq -cM '[.imageIds[].imageTag]')
+    echo "${TAGS}"
     return 0
   fi
 
   INNER_AUTH_TRIES=0
 
-  AUTHORIZATION_HEADER="Authorization: Basic $(echo ${V2_USERNAME}:${V2_PASSWORD} | base64)"
+  AUTHORIZATION_HEADER="Authorization: Basic $(echo "${V2_USERNAME}:${V2_PASSWORD}" | base64)"
 
   TAGS_URL="${V2_PROTO}://${V2_REGISTRY}/v2/${IMAGE}/tags/list"
   TAGS="[]"
@@ -429,7 +430,7 @@ query_tags_to_skip() {
         if [[ "$line" =~ $'Www-Authenticate' ]]; then
            NEED_AUTH="$line"
         fi
-        RESPONSE_HEADER="$RESPONSE_HEADER\n$line"
+        RESPONSE_HEADER="$RESPONSE_HEADER\\n$line"
       fi
 
       if [ "${BODY}" = "true" ]; then
@@ -460,7 +461,7 @@ query_tags_to_skip() {
 
       AUTH_URL="${REALM}?service=${SERVICE}&scope=${SCOPE}"
       AUTH_RESPONSE=$(curl ${INSECURE_CURL} -s "${AUTH_URL}" --user "${V2_USERNAME}:${V2_PASSWORD}")
-      AUTH_TOKEN=$(echo ${AUTH_RESPONSE} | jq .token | tr -d '"')
+      AUTH_TOKEN=$(echo "${AUTH_RESPONSE}" | jq .token | tr -d '"')
       AUTHORIZATION_HEADER="Authorization: Bearer ${AUTH_TOKEN}"
       INNER_AUTH_TRIES=1
 
@@ -473,15 +474,15 @@ query_tags_to_skip() {
     fi
 
     # bash substring mechanism requires us to save this into an intermediate field
-    NEXT_PAGE_LINK_IN_CHEVRONS=$(echo ${NEXT_PAGE} | grep -o '<.*>')
+    NEXT_PAGE_LINK_IN_CHEVRONS=$(echo "${NEXT_PAGE}" | grep -o '<.*>')
     NEXT_PAGE_LINK=${NEXT_PAGE_LINK_IN_CHEVRONS:1:-1}
-    THIS_PAGE_TAGS=$(echo ${RESPONSE_BODY} | jq -cM '[.tags[]]')
-    TAGS=$(jq -scM '.[0] as $o1 | .[1] as $o2 | ($o1 + $o2)' < <(echo ${TAGS}; echo ${THIS_PAGE_TAGS}))
+    THIS_PAGE_TAGS=$(echo "${RESPONSE_BODY}" | jq -cM '[.tags[]]')
+    TAGS=$(jq -scM '.[0] as $o1 | .[1] as $o2 | ($o1 + $o2)' < <(echo "${TAGS}"; echo "${THIS_PAGE_TAGS}"))
 
     TAGS_URL=${NEXT_PAGE_LINK}
   done
 
-  echo ${TAGS}
+  echo "${TAGS}"
 
 }
 
@@ -498,7 +499,7 @@ json_array_contains() {
   HAYSTACK="${1}"
   NEEDLE="${2}"
 
-  echo ${HAYSTACK} | jq --arg needle ${NEEDLE} 'any(.[]; . == $needle)'
+  echo "${HAYSTACK}" | jq --arg needle "${NEEDLE}" 'any(.[]; . == $needle)'
 }
 
 strip_library() {
@@ -507,7 +508,7 @@ strip_library() {
     # cut off 'library/' from beginning of image
     echo "${1:8}"
   else
-    echo $1
+    echo "${1}"
   fi
 }
 
@@ -518,7 +519,7 @@ filter_tags() {
   FULL_IMAGE_NAME="${NAMESPACE}${NAMESPACE:+/}${i}:${j}"
 
   # only append this tag to the list if the tag wasn't pushed before
-  if [ "$(json_array_contains ${TAGS_AT_TARGET} ${j})" = "true" ]; then
+  if [ "$(json_array_contains "${TAGS_AT_TARGET}" "${j}")" = "true" ]; then
     echo -e "${INFO} Skipping ${V1_REGISTRY}/${FULL_IMAGE_NAME}"
   else
     # no tag filter
@@ -539,12 +540,12 @@ filter_tags() {
 
 # query the source registry for a list of all images
 query_source_images() {
-  echo -e "\n${INFO} Getting a list of images from ${V1_REGISTRY}"
+  echo -e "\\n${INFO} Getting a list of images from ${V1_REGISTRY}"
   # check to see if migrating from docker hub or a v1 registry
   if [ "${DOCKER_HUB}" = "true" ]
   then
     # get token to be able to talk to Docker Hub
-    TOKEN=$(curl ${INSECURE_CURL} -sf -H "Content-Type: application/json" -X POST -d '{"username": "'${DOCKER_HUB_USERNAME}'", "password": "'${DOCKER_HUB_PASSWORD}'"}' https://hub.docker.com/v2/users/login/ | jq -r .token) || catch_error "curl => API failure getting token"
+    TOKEN=$(curl ${INSECURE_CURL} -sf -H "Content-Type: application/json" -X POST -d '{"username": "'"${DOCKER_HUB_USERNAME}"'", "password": "'"${DOCKER_HUB_PASSWORD}"'"}' https://hub.docker.com/v2/users/login/ | jq -r .token) || catch_error "curl => API failure getting token"
 
     # check to see if DOCKER_HUB_ORG has been specified
     if [ -z "${DOCKER_HUB_ORG}" ]
@@ -559,7 +560,7 @@ query_source_images() {
       NAMESPACES=$(curl -sf -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/user/orgs/ | jq -r '.results|.[].orgname') || catch_error "curl => API failure gettng namespaces"
 
       # verify NAMESPACE is in NAMESPACES to ensure proper access; abort if incorrect access
-      if ! echo ${NAMESPACES} | grep -w ${NAMESPACE} > /dev/null 2>&1
+      if ! echo "${NAMESPACES}" | grep -w "${NAMESPACE}" > /dev/null 2>&1
       then
         catch_error "The Docker Hub user ${BOLD}${DOCKER_HUB_USERNAME}${CLEAR} does not have permission to access ${BOLD}${NAMESPACE}${CLEAR}; aborting"
       fi
@@ -575,10 +576,10 @@ query_source_images() {
       PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure getting repo list"
 
       # figure out next page URL
-      PAGE_URL="$(echo $PAGE_DATA | jq -r .next)"
+      PAGE_URL="$(echo "$PAGE_DATA" | jq -r .next)"
 
       # Add repos to the list
-      FULL_REPO_LIST="${FULL_REPO_LIST} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name')"
+      FULL_REPO_LIST="${FULL_REPO_LIST} $(echo "${PAGE_DATA}" | jq -r '.results|.[]|.name')"
     done
 
     # check to see if a filter pattern was provided, create a list of all repositories for the given namespace
@@ -588,8 +589,8 @@ query_source_images() {
       REPO_LIST="${FULL_REPO_LIST}"
     else
       # filter provided; build list of what we will and will not migrate
-      REPO_LIST="$(echo "$FULL_REPO_LIST" | grep ${V1_REPO_FILTER} || true)"
-      FILTERED_REPO_LIST="$(echo "$FULL_REPO_LIST" | grep -v ${V1_REPO_FILTER} || true)"
+      REPO_LIST="$(echo "$FULL_REPO_LIST" | grep "${V1_REPO_FILTER}" || true)"
+      FILTERED_REPO_LIST="$(echo "$FULL_REPO_LIST" | grep -v "${V1_REPO_FILTER}" || true)"
 
       for i in ${FILTERED_REPO_LIST}
       do
@@ -607,7 +608,7 @@ query_source_images() {
       PAGE_URL="https://hub.docker.com/v2/repositories/${NAMESPACE}/${i}/tags/?page=1&page_size=250"
 
       # retrieve a list of tags at the target repository
-      TAGS_AT_TARGET=$(query_tags_to_skip ${NAMESPACE}/${i})
+      TAGS_AT_TARGET=$(query_tags_to_skip "${NAMESPACE}"/"${i}")
 
       # loop through each page of tags
       while [ "${PAGE_URL}" != "null" ]
@@ -616,16 +617,16 @@ query_source_images() {
         PAGE_DATA=$(curl ${INSECURE_CURL} -sf -H "Authorization: JWT ${TOKEN}" "${PAGE_URL}") || catch_error "curl => API failure getting tag list"
 
         # figure out next page URL
-        PAGE_URL="$(echo $PAGE_DATA  | jq -r .next)"
+        PAGE_URL="$(echo "$PAGE_DATA" | jq -r .next)"
 
         # Add tags to the list
-        IMAGE_TAGS="${IMAGE_TAGS} $(echo ${PAGE_DATA} | jq -r '.results|.[]|.name')"
+        IMAGE_TAGS="${IMAGE_TAGS} $(echo "${PAGE_DATA}" | jq -r '.results|.[]|.name')"
       done
 
       # build a list of images from tags
       for j in ${IMAGE_TAGS}
       do
-        i=$(strip_library $i)
+        i=$(strip_library "${i}")
         filter_tags
       done
     done
@@ -635,7 +636,7 @@ query_source_images() {
     then
       # get a list of all repos
       echo -e "${INFO} Grabbing list of repositories from ${V1_REGISTRY}"
-      FULL_REPO_LIST=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure getting repo list"
+      FULL_REPO_LIST=$(curl "${V1_OPTIONS}" -sf ${V1_PROTO}://"${AUTH_CREDS}"@$"{V1_REGISTRY}"/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure getting repo list"
     else
       FULL_REPO_LIST=${V1_FULL_REPO_LIST}
     fi
@@ -646,9 +647,9 @@ query_source_images() {
       REPO_LIST="${FULL_REPO_LIST}"
     else
       # filter pattern defined, use grep to match repos w/regex capabilites
-      REPO_LIST=$(echo "${FULL_REPO_LIST}" | grep ${V1_REPO_FILTER} || true)
+      REPO_LIST=$(echo "${FULL_REPO_LIST}" | grep "${V1_REPO_FILTER}" || true)
       # get list of filtered repos
-      FILTERED_REPO_LIST="$(echo "${FULL_REPO_LIST}" | grep -v ${V1_REPO_FILTER} || true)"
+      FILTERED_REPO_LIST="$(echo "${FULL_REPO_LIST}" | grep -v "${V1_REPO_FILTER}" || true)"
 
       for i in ${FILTERED_REPO_LIST}
       do
@@ -661,17 +662,16 @@ query_source_images() {
     do
       # get list of tags for image i
       echo -e "${INFO} Grabbing tags for ${V1_REGISTRY}/${NAMESPACE}/${i}"
-      #echo -e "curl -v ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags"
-      IMAGE_TAGS=$(curl ${V1_OPTIONS} -sf ${V1_PROTO}://${AUTH_CREDS}@${V1_REGISTRY}/v1/repositories/${i}/tags | jq -r 'keys | .[]') || catch_error "curl => API failure reading tags"
-  
+      IMAGE_TAGS=$(curl "${V1_OPTIONS}" -sf ${V1_PROTO}://"${AUTH_CREDS}"@"${V1_REGISTRY}"/v1/repositories/"${i}"/tags | jq -r 'keys | .[]') || catch_error "curl => API failure reading tags"
+
       # retrieve a list of tags at the target repository
-      TAGS_AT_TARGET=$(query_tags_to_skip ${i})
+      TAGS_AT_TARGET=$(query_tags_to_skip "${i}")
       echo -e "${INFO} Found the following existing tags at ${V2_REGISTRY}/${NAMESPACE}/${i}: ${TAGS_AT_TARGET}"
-  
+
       # loop through tags to create list of full image names w/tags
       for j in ${IMAGE_TAGS}
       do
-        i=$(strip_library $i)
+        i=$(strip_library "${i}")
         filter_tags
       done
     done
@@ -682,12 +682,12 @@ query_source_images() {
 # show list of images from docker hub or the v1 registry
 show_source_image_list() {
   # check to see if a filter pattern was provided, create a list of all repositories for the given namespace
-  echo -e "\n${INFO} Full list of images from ${V1_REGISTRY} to be migrated:"
+  echo -e "\\n${INFO} Full list of images from ${V1_REGISTRY} to be migrated:"
 
   # output list with v1 registry name prefix added
   for i in ${FULL_IMAGE_LIST}
   do
-    echo ${V1_REGISTRY}/${i}
+    echo "${V1_REGISTRY}/${i}"
   done
   echo -e "${OK} End full list of images from ${V1_REGISTRY}"
 
@@ -695,7 +695,7 @@ show_source_image_list() {
   if ${USER_PROMPT}
   then
     # prompt user to press any key to begin migration
-    echo -en "\n${NOTICE} "
+    echo -en "\\n${NOTICE} "
     read -rsp $"Press any key to begin migration process [ctrl+c to abort]" -n1 key; echo
   fi
 }
@@ -721,12 +721,12 @@ push_pull_image() {
     push)
       # push image
       echo -e "${INFO} Pushing ${IMAGE} ${MIG_STATUS}"
-      (docker push ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "push" "${IMAGE}" "${3}" "${4}"
+      (docker push "${IMAGE}" && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\\n") || catch_push_pull_error "push" "${IMAGE}" "${3}" "${4}"
       ;;
     pull)
       # pull image
       echo -e "${INFO} Pulling ${IMAGE} ${MIG_STATUS}"
-      (docker pull ${IMAGE} && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\n") || catch_push_pull_error "pull" "${IMAGE}" "${3}" "${4}"
+      (docker pull "${IMAGE}" && echo -e "${OK} Successfully ${ACTION}ed ${IMAGE}\\n") || catch_push_pull_error "pull" "${IMAGE}" "${3}" "${4}"
       ;;
   esac
 }
@@ -749,7 +749,7 @@ retag_image() {
 
   # retag image
   echo -e "${INFO} Retagging ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i} ${MIG_STATUS}"
-  (docker tag -f ${SOURCE_IMAGE} ${DESTINATION_IMAGE} && echo -e "${OK} Successfully retagged ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i}\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
+  (docker tag -f "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" && echo -e "${OK} Successfully retagged ${V1_REGISTRY}/${i} to ${V2_REGISTRY}/${i}\\n") || catch_retag_error "${SOURCE_IMAGE}" "${DESTINATION_IMAGE}" "${3}" "${4}"
 }
 
 # remove image
@@ -759,20 +759,20 @@ remove_image() {
 
   # remove image
   echo -e "${INFO} Removing ${IMAGE}"
-  (docker rmi ${IMAGE} && echo -e "${OK} Successfully removed ${IMAGE}\n") || echo -e "${OK} Failed to remove ${IMAGE}; continuing\n"
+  (docker rmi "${IMAGE}" && echo -e "${OK} Successfully removed ${IMAGE}\\n") || echo -e "${OK} Failed to remove ${IMAGE}; continuing\\n"
 }
 
 # pull all images to local system
 pull_images_from_source() {
   # initialize variable for counting
   COUNT_PULL=1
-  LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+  LEN_FULL_IMAGE_LIST=$(count_list "${FULL_IMAGE_LIST}")
 
-  echo -e "\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
+  echo -e "\\n${INFO} Pulling all images from ${V1_REGISTRY} to your local system"
   for i in ${FULL_IMAGE_LIST}
   do
-    push_pull_image "pull" "${V1_REGISTRY}/${i}" ${COUNT_PULL} ${LEN_FULL_IMAGE_LIST}
-    COUNT_PULL=$[$COUNT_PULL+1]
+    push_pull_image "pull" "${V1_REGISTRY}/${i}" ${COUNT_PULL} "${LEN_FULL_IMAGE_LIST}"
+    COUNT_PULL=$((COUNT_PULL+1))
   done
   echo -e "${OK} Successully pulled all images from ${V1_REGISTRY} to your local system"
 }
@@ -782,7 +782,7 @@ check_registry_swap_or_retag() {
   if [ "${V1_REGISTRY}" = "${V2_REGISTRY}" ]
   then
     # retagging not needed; re-using same DNS name for v2 registry
-    echo -e "${OK} Skipping re-tagging; same URL used for v1 and v2\n"
+    echo -e "${OK} Skipping re-tagging; same URL used for v1 and v2\\n"
     # notify user to swtich out their registry now
     echo -en "${NOTICE} "
     read -rsp $'Make the necessary changes to switch your v1 and v2 registries and then press any key to continue\n' -n1 key
@@ -790,13 +790,13 @@ check_registry_swap_or_retag() {
     # re-tag images; different DNS name used for v2 registry
     # initialize variable for counting
     COUNT_RETAG=1
-    LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+    LEN_FULL_IMAGE_LIST=$(count_list "${FULL_IMAGE_LIST}")
 
-    echo -e "\n${INFO} Retagging all images from '${V1_REGISTRY}' to '${V2_REGISTRY}'"
+    echo -e "\\n${INFO} Retagging all images from '${V1_REGISTRY}' to '${V2_REGISTRY}'"
     for i in ${FULL_IMAGE_LIST}
     do
-      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}" ${COUNT_RETAG} ${LEN_FULL_IMAGE_LIST}
-      COUNT_RETAG=$[$COUNT_RETAG+1]
+      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}" ${COUNT_RETAG} "${LEN_FULL_IMAGE_LIST}"
+      COUNT_RETAG=$((COUNT_RETAG+1))
     done
     echo -e "${OK} Successfully retagged all images"
   fi
@@ -808,7 +808,7 @@ verify_v2_ready() {
   while [ "${V2_READY}" = "false" ]
   do
     # check to see if V2_REGISTRY is returning the expected header (see https://docs.docker.com/registry/spec/api/#api-version-check:00e71df22262087fd8ad820708997657)
-    if $(curl ${V2_OPTIONS} -Is ${V2_PROTO}://${V2_REGISTRY}/v2/ | grep -i ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1)
+    if curl "${V2_OPTIONS}" -Is ${V2_PROTO}://"${V2_REGISTRY}"/v2/ | grep -i ^'Docker-Distribution-Api-Version: registry/2.0' > /dev/null 2>&1
     then
       # api version indicates v2; sets value to exit loop
       V2_READY="true"
@@ -820,14 +820,15 @@ verify_v2_ready() {
         catch_error "Failed verify v2 registry available; aborting"
       else
         # api version either not returned or not showing proper version; will continue in loop
-        echo -e "\n${ERROR} v2 registry (${V2_REGISTRY}) is not available"
+        echo -e "\\n${ERROR} v2 registry (${V2_REGISTRY}) is not available"
         echo -en "${NOTICE} "
+        # shellcheck disable=SC2034
         read -rsp $'Verify v2 registry is functioning as expected; press any key to continue to retry [ctrl+c to abort]\n' -n1 key
       fi
     fi
   done
   # v2 registry verified as available
-  echo -e "\n${OK} Verified v2 registry (${V2_REGISTRY}) is available"
+  echo -e "\\n${OK} Verified v2 registry (${V2_REGISTRY}) is available"
 }
 
 # push images to v2 registry
@@ -837,19 +838,19 @@ push_images_to_v2() {
     for i in ${REPO_LIST}
     do
       # create ECR repository
-      aws ecr create-repository --region ${AWS_REGION} --repository-name ${NAMESPACE}/${i}
+      aws ecr create-repository --region "${AWS_REGION}" --repository-name "${NAMESPACE}"/"${i}"
     done
   fi
 
   # initialize variable for counting
   COUNT_PUSH=1
-  LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+  LEN_FULL_IMAGE_LIST=$(count_list "${FULL_IMAGE_LIST}")
 
-  echo -e "\n${INFO} Pushing all images to ${V2_REGISTRY}"
+  echo -e "\\n${INFO} Pushing all images to ${V2_REGISTRY}"
   for i in ${FULL_IMAGE_LIST}
   do
-    push_pull_image "push" "${V2_REGISTRY}/${i}" ${COUNT_PUSH} ${LEN_FULL_IMAGE_LIST}
-    COUNT_PUSH=$[$COUNT_PUSH+1]
+    push_pull_image "push" "${V2_REGISTRY}/${i}" ${COUNT_PUSH} "${LEN_FULL_IMAGE_LIST}"
+    COUNT_PUSH=$((COUNT_PUSH+1))
   done
   echo -e "${OK} Successfully pushed all images to ${V2_REGISTRY}"
 }
@@ -867,53 +868,52 @@ migrate_in_increments() {
   COUNT_PULL=1
   COUNT_RETAG=1
   COUNT_PUSH=1
-  COUNT_DELETE=1
 
   # count number of items in FULL_IMAGE_LIST
-  LEN_FULL_IMAGE_LIST=$(count_list ${FULL_IMAGE_LIST})
+  LEN_FULL_IMAGE_LIST=$(count_list "${FULL_IMAGE_LIST}")
 
   # convert list to array
-  FULL_IMAGE_ARR=($FULL_IMAGE_LIST)
+  FULL_IMAGE_ARR=("$FULL_IMAGE_LIST")
 
   # migrate incrementally while looping through entire list
-  while [ ${COUNT_START} -lt ${LEN_FULL_IMAGE_LIST} ]
+  while [ "${COUNT_START}" -lt "${LEN_FULL_IMAGE_LIST}" ]
   do
     # pull images from v1
-    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    for i in "${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}"
     do
-      push_pull_image "pull" "${V1_REGISTRY}/${i}" ${COUNT_PULL} ${LEN_FULL_IMAGE_LIST}
-      COUNT_PULL=$[$COUNT_PULL+1]
+      push_pull_image "pull" "${V1_REGISTRY}/${i}" ${COUNT_PULL} "${LEN_FULL_IMAGE_LIST}"
+      COUNT_PULL=$((COUNT_PULL+1))
     done
 
     # retag images from v1 for v2
-    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    for i in "${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}"
     do
-      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}" ${COUNT_RETAG} ${LEN_FULL_IMAGE_LIST}
-      COUNT_RETAG=$[$COUNT_RETAG+1]
+      retag_image "${V1_REGISTRY}/${i}" "${V2_REGISTRY}/${i}" ${COUNT_RETAG} "${LEN_FULL_IMAGE_LIST}"
+      COUNT_RETAG=$((COUNT_RETAG+1))
     done
 
     # push images to v2
-    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    for i in "${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}"
     do
-      push_pull_image "push" "${V2_REGISTRY}/${i}" ${COUNT_PUSH} ${LEN_FULL_IMAGE_LIST}
-      COUNT_PUSH=$[$COUNT_PUSH+1]
+      push_pull_image "push" "${V2_REGISTRY}/${i}" ${COUNT_PUSH} "${LEN_FULL_IMAGE_LIST}"
+      COUNT_PUSH=$((COUNT_PUSH+1))
     done
 
     # delete images locally to free disk space
-    for i in ${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}
+    for i in "${FULL_IMAGE_ARR[@]:${COUNT_START}:${COUNT_END}}"
     do
       remove_image "${V1_REGISTRY}/${i}"
       remove_image "${V2_REGISTRY}/${i}"
     done
 
     # increment COUNT_START by migration increment value
-    COUNT_START=$[$COUNT_START+$MIGRATION_INCREMENT]
+    COUNT_START=$((COUNT_START+MIGRATION_INCREMENT))
   done
 }
 
 # cleanup images from local docker engine
 cleanup_local_engine() {
-  echo -e "\n${INFO} Cleaning up images from local Docker engine"
+  echo -e "\\n${INFO} Cleaning up images from local Docker engine"
 
   # check to see if migrating from docker hub
   # see if re-tagged images exist and remove accordingly
@@ -951,8 +951,9 @@ main() {
   verify_ready
   # check to see if NO_LOGIN is not true
   if [ "${V1_NO_LOGIN}" != "true" ]; then
-    docker_login ${V1_REGISTRY} ${V1_USERNAME} ${V1_PASSWORD} ${V1_EMAIL}
-    decode_auth ${V1_REGISTRY}
+    # shellcheck disable=SC2153
+    docker_login "${V1_REGISTRY}" "${V1_USERNAME}" "${V1_PASSWORD}" "${V1_EMAIL}"
+    decode_auth "${V1_REGISTRY}"
   fi
   query_source_images
   show_source_image_list
@@ -960,7 +961,7 @@ main() {
   if [ "${MIGRATE_IN_INCREMENTS}" = "true" ]; then
     # check to see if V2_NO_LOGIN is true
     if [ "${V2_NO_LOGIN}" != "true" ]; then
-      docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+      docker_login "${V2_REGISTRY}" "${V2_USERNAME}" "${V2_PASSWORD}" "${V2_EMAIL}"
     fi
     # perform migration incrementally
     migrate_in_increments
@@ -971,7 +972,7 @@ main() {
     verify_v2_ready
     # check to see if V2_NO_LOGIN is true
     if [ "${V2_NO_LOGIN}" != "true" ]; then
-      docker_login ${V2_REGISTRY} ${V2_USERNAME} ${V2_PASSWORD} ${V2_EMAIL}
+      docker_login "${V2_REGISTRY}" "${V2_USERNAME}" "${V2_PASSWORD}" "${V2_EMAIL}"
     fi
     push_images_to_v2
     cleanup_local_engine
