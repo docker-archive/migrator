@@ -636,7 +636,7 @@ query_source_images() {
     then
       # get a list of all repos
       echo -e "${INFO} Grabbing list of repositories from ${V1_REGISTRY}"
-      FULL_REPO_LIST=$(curl "${V1_OPTIONS}" -sf ${V1_PROTO}://"${AUTH_CREDS}"@$"{V1_REGISTRY}"/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure getting repo list"
+      FULL_REPO_LIST=$(curl "${V1_OPTIONS}" -sf ${V1_PROTO}://"${AUTH_CREDS}"@"${V1_REGISTRY}"/v1/search?q= | jq -r '.results | .[] | .name') || catch_error "curl => API failure getting repo list"
     else
       FULL_REPO_LIST=${V1_FULL_REPO_LIST}
     fi
