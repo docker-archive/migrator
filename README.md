@@ -26,7 +26,7 @@ The following environment variables can be set:
 
 #### Optional
 
-  * `AWS_ACCESS_KEY` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
+  * `AWS_ACCESS_KEY_ID` - AWS Access Key supplied as either an environment variable or as a part of your credentials file.
   * `AWS_REGION` - AWS Region, must be specified if using ECR
   * `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key supplied as either an environment variable or as a part of your credentials file.
   * `ERROR_ACTION` - Sets the default action on error for pushes and pulls
