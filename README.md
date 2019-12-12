@@ -120,17 +120,17 @@ docker/migrator
 The migration occurs using an automated script inside of the Docker container.  Running using the above usage will work as expected.
 
 1. Login to the v1 registry or Docker Hub (_Optional_)
- - If you do not have authentication enabled, leave the username blank when prompted
+   - If you do not have authentication enabled, leave the username blank when prompted
 2. Query the v1 registry or Docker Hub for a list of all repositories
 3. With the list of images, query the v1 registry or Docker Hub for all tags for each repository.  This becomes the list of all images with tags that you need to migrate
 4. Using a Docker engine, pull all images (including each tag)
 5. Once all images are pulled, there are a few options for next steps:
-  1. If the same DNS record will be used for the v1 and v2 registries:
-    * Have user switch the DNS record over to the new server's IP or if same box to be used, stop the v1 registry and start the v2 registry
-  2. If a different DNS record will be used for the v1 and v2 registries:
-    * Re-tag all images to change the tagging from the old DNS record to the new one
+   1. If the same DNS record will be used for the v1 and v2 registries:
+      * Have user switch the DNS record over to the new server's IP or if same box to be used, stop the v1 registry and start the v2 registry
+   2. If a different DNS record will be used for the v1 and v2 registries:
+      * Re-tag all images to change the tagging from the old DNS record to the new one
 6. Login to the v2 registry (_Optional_)
-  * If you do not have authentication enabled, leave the username blank when prompted
+   * If you do not have authentication enabled, leave the username blank when prompted
 7. Push all images and tags to the v2 registry
 8. Verify v1 to v2 image migration was successful (not yet implemented)
 9. Cleanup local docker engine to remove images
